@@ -147,16 +147,25 @@ class TaskAPI {
       failed: []
     };
 
-    // Adaptive delay based on batch size
+    // Very conservative delay for large batches to avoid rate limits
     let currentDelay = this.batchDelay;
-    if (tasks.length > 100) {
-      currentDelay = 250; // Slower for large batches
-    }
-    if (tasks.length > 500) {
-      currentDelay = 500; // Much slower for very large batches
+    let maxRetries = this.maxRetries;
+    
+    if (tasks.length > 1000) {
+      currentDelay = 1000; // 1 second for very large batches
+      maxRetries = 5; // More retries for large batches
+    } else if (tasks.length > 500) {
+      currentDelay = 750; // 750ms
+      maxRetries = 4;
+    } else if (tasks.length > 100) {
+      currentDelay = 350; // 350ms
+      maxRetries = 3;
     }
 
-    console.log(`[API] Starting bulk insert of ${tasks.length} tasks with ${currentDelay}ms delay`);
+    console.log(`[API] Starting bulk insert of ${tasks.length} tasks with ${currentDelay}ms delay and ${maxRetries} max retries`);
+
+    let consecutiveErrors = 0;
+    const maxConsecutiveErrors = 5;
 
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
@@ -164,36 +173,54 @@ class TaskAPI {
       let success = false;
       let lastError = null;
 
-      while (retries < this.maxRetries && !success) {
+      while (retries < maxRetries && !success) {
         try {
           const result = await this.insertTask(taskListId, task);
           results.successful.push({ task: result, original: task });
           success = true;
+          consecutiveErrors = 0; // Reset on success
           
-          // Reset delay on success
-          if (tasks.length > 100 && currentDelay > this.batchDelay) {
-            currentDelay = Math.max(this.batchDelay, currentDelay - 10); // Gradually speed up
+          // Gradually speed up if no errors (but stay conservative)
+          if (tasks.length > 100 && currentDelay > this.batchDelay && consecutiveErrors === 0) {
+            currentDelay = Math.max(this.batchDelay * 2, currentDelay - 50);
           }
           
         } catch (error) {
           lastError = error;
           retries++;
+          consecutiveErrors++;
+          
+          console.warn(`[API] Error on task ${i + 1}/${tasks.length} (attempt ${retries}/${maxRetries}):`, error.message);
           
           // Check if it's a rate limit error
-          if (error.message.includes('Rate limit') || error.message.includes('429') || error.message.includes('403')) {
-            console.warn(`[API] Rate limit hit at task ${i + 1}/${tasks.length}, slowing down...`);
+          if (error.message.includes('Rate limit') || 
+              error.message.includes('429') || 
+              error.message.includes('403') ||
+              error.message.includes('quota')) {
             
-            // Increase delay significantly for rate limits
-            currentDelay = Math.min(currentDelay * 2, 2000); // Double delay, max 2 seconds
+            console.warn(`[API] Rate limit/quota hit, slowing down significantly...`);
             
-            // Wait longer before retry
-            await this.delay(currentDelay * 3);
+            // Dramatically increase delay for rate limits
+            currentDelay = Math.min(currentDelay * 2.5, 5000); // Up to 5 seconds between requests
+            
+            // Wait even longer before retry (proportional to retry attempt)
+            const backoffDelay = currentDelay * (retries + 1) * 2;
+            console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
+            await this.delay(backoffDelay);
+            
           } else {
             // Other error, use exponential backoff
             await this.delay(this.batchDelay * Math.pow(2, retries));
           }
           
-          if (retries >= this.maxRetries) {
+          // If too many consecutive errors, pause significantly
+          if (consecutiveErrors >= maxConsecutiveErrors) {
+            console.warn(`[API] ${consecutiveErrors} consecutive errors, pausing for 10 seconds...`);
+            await this.delay(10000);
+            consecutiveErrors = 0;
+          }
+          
+          if (retries >= maxRetries) {
             results.failed.push({ task, error: lastError.message });
             console.error(`[API] Failed to insert task after ${retries} attempts:`, task.title);
           }
@@ -215,7 +242,7 @@ class TaskAPI {
     
     return results;
   }
-  
+
 
   /**
    * Bulk update tasks
