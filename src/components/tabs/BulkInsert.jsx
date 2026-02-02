@@ -33,19 +33,21 @@ function BulkInsert() {
     }
   }
 
-  function calculateEstimate(taskCount) {
+function calculateEstimate(taskCount) {
     let delayPerTask;
     
-    if (taskCount < 100) {
-      delayPerTask = 100; // 100ms
-    } else if (taskCount < 500) {
-      delayPerTask = 250; // 250ms
+    if (taskCount > 1000) {
+      delayPerTask = 1000; // 1 second
+    } else if (taskCount > 500) {
+      delayPerTask = 750; // 750ms
+    } else if (taskCount > 100) {
+      delayPerTask = 350; // 350ms
     } else {
-      delayPerTask = 500; // 500ms
+      delayPerTask = 100; // 100ms
     }
     
-    // Add 10% buffer for API overhead and potential retries
-    const totalMs = taskCount * delayPerTask * 1.1;
+    // Add 20% buffer for API overhead, retries, and backoff
+    const totalMs = taskCount * delayPerTask * 1.2;
     const totalSeconds = Math.ceil(totalMs / 1000);
     
     return {
