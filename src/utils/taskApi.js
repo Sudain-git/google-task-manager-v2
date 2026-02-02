@@ -135,7 +135,7 @@ class TaskAPI {
     }
   }
 
-  /**
+/**
    * Bulk insert tasks with rate limiting and retry logic
    * @param {string} taskListId - The task list ID
    * @param {Array} tasks - Array of task objects
@@ -147,24 +147,55 @@ class TaskAPI {
       failed: []
     };
 
+    // Adaptive delay based on batch size
+    let currentDelay = this.batchDelay;
+    if (tasks.length > 100) {
+      currentDelay = 250; // Slower for large batches
+    }
+    if (tasks.length > 500) {
+      currentDelay = 500; // Much slower for very large batches
+    }
+
+    console.log(`[API] Starting bulk insert of ${tasks.length} tasks with ${currentDelay}ms delay`);
+
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
       let retries = 0;
       let success = false;
+      let lastError = null;
 
       while (retries < this.maxRetries && !success) {
         try {
           const result = await this.insertTask(taskListId, task);
           results.successful.push({ task: result, original: task });
           success = true;
+          
+          // Reset delay on success
+          if (tasks.length > 100 && currentDelay > this.batchDelay) {
+            currentDelay = Math.max(this.batchDelay, currentDelay - 10); // Gradually speed up
+          }
+          
         } catch (error) {
+          lastError = error;
           retries++;
           
-          if (retries >= this.maxRetries) {
-            results.failed.push({ task, error: error.message });
+          // Check if it's a rate limit error
+          if (error.message.includes('Rate limit') || error.message.includes('429') || error.message.includes('403')) {
+            console.warn(`[API] Rate limit hit at task ${i + 1}/${tasks.length}, slowing down...`);
+            
+            // Increase delay significantly for rate limits
+            currentDelay = Math.min(currentDelay * 2, 2000); // Double delay, max 2 seconds
+            
+            // Wait longer before retry
+            await this.delay(currentDelay * 3);
           } else {
-            // Exponential backoff
+            // Other error, use exponential backoff
             await this.delay(this.batchDelay * Math.pow(2, retries));
+          }
+          
+          if (retries >= this.maxRetries) {
+            results.failed.push({ task, error: lastError.message });
+            console.error(`[API] Failed to insert task after ${retries} attempts:`, task.title);
           }
         }
       }
@@ -174,14 +205,17 @@ class TaskAPI {
         onProgress(i + 1, tasks.length);
       }
 
-      // Delay between requests
+      // Delay between requests (skip on last item)
       if (i < tasks.length - 1) {
-        await this.delay(this.batchDelay);
+        await this.delay(currentDelay);
       }
     }
 
+    console.log(`[API] Bulk insert complete: ${results.successful.length} successful, ${results.failed.length} failed`);
+    
     return results;
   }
+  
 
   /**
    * Bulk update tasks
