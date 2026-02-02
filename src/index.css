@@ -2,11 +2,11 @@
 
 :root {
   /* Color Palette - Soft light theme with warm tones */
-  --bg-primary: #faf8f5;      /* Warm beige-white */
-  --bg-secondary: #f2ede8;    /* Warm light gray */
-  --bg-tertiary: #e8e2dc;     /* Warm medium gray */
+  --bg-primary: #F4F1EA;   /* Parchment - noticeably not white */
+  --bg-secondary: #E9E4DB; /* Deeper contrast for cards/sidebars */
+  --bg-tertiary: #DDD6C8;  /* Defined borders/inactive areas */
   
-  --text-primary: #1a202c;
+  --text-primary: #2D2A26;
   --text-secondary: #4a5568;
   --text-tertiary: #718096;
   
@@ -48,7 +48,6 @@
   --transition-base: 250ms ease;
   --transition-slow: 350ms ease;
 }
-The key changes:
 
 * {
   margin: 0;

@@ -310,11 +310,18 @@
 
 /* Responsive Design */
 
-/* Tall/Narrow screens (portrait mobile/tablet) */
+/* Medium screens - 3 columns when width is tight */
+@media (max-width: 1200px) {
+  .tab-grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: auto;
+  }
+}
+
+/* Tablet/narrow screens - 2 columns */
 @media (max-width: 768px) {
   .tab-grid {
     grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: repeat(5, auto);
   }
 
   .tab-content {
@@ -334,11 +341,10 @@
   }
 }
 
-/* Very narrow screens */
+/* Very narrow screens - 1 column */
 @media (max-width: 480px) {
   .tab-grid {
     grid-template-columns: 1fr;
-    grid-template-rows: repeat(10, auto);
   }
 
   .tab-button {
@@ -346,7 +352,7 @@
   }
 }
 
-/* Wide/Short screens (landscape) */
+/* Wide screens - keep 5 columns */
 @media (min-width: 1400px) {
   .tab-grid {
     gap: var(--spacing-md);
