@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import './TabNavigation.css';
 
-// Import tab components (we'll create these next)
+// Import tab components
 import BulkInsert from './tabs/BulkInsert';
 import BulkSetNotes from './tabs/BulkSetNotes';
 import BulkSetDates from './tabs/BulkSetDates';
@@ -11,6 +11,7 @@ import ParentChild from './tabs/ParentChild';
 import AutoSetNotes from './tabs/AutoSetNotes';
 import YouTubeImport from './tabs/YouTubeImport';
 import Settings from './tabs/Settings';
+import Tab10 from './tabs/Tab10';
 
 const TABS = [
   { id: 'bulk-insert', label: 'Bulk Insert', component: BulkInsert },
@@ -22,6 +23,7 @@ const TABS = [
   { id: 'auto-notes', label: 'Auto Notes', component: AutoSetNotes },
   { id: 'youtube', label: 'YouTube Import', component: YouTubeImport },
   { id: 'settings', label: 'Settings', component: Settings },
+  { id: 'tab10', label: 'Tab 10', component: Tab10 },
 ];
 
 function TabNavigation() {
@@ -33,7 +35,7 @@ function TabNavigation() {
     <div className="tab-container">
       {/* Tab Navigation */}
       <nav className="tab-nav">
-        <div className="tab-list">
+        <div className="tab-grid">
           {TABS.map(tab => (
             <button
               key={tab.id}

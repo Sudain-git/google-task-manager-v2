@@ -27,7 +27,8 @@
 /* Error Screen */
 .error-card {
   background: var(--bg-secondary);
-  border: 1px solid var(--accent-error);
+  border: 2px solid var(--accent-error);
+  border-radius: var(--radius-lg);
   padding: var(--spacing-2xl);
   max-width: 500px;
   text-align: center;
@@ -60,20 +61,22 @@
 .login-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
   padding: var(--spacing-2xl);
   max-width: 600px;
   width: 100%;
   text-align: center;
   position: relative;
   overflow: hidden;
+  box-shadow: var(--shadow-lg);
 }
 
 .login-card::before {
   content: '';
   position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
+  top: 0;
+  left: 0;
+  right: 0;
   height: 4px;
   background: linear-gradient(90deg, 
     var(--accent-primary), 
@@ -118,8 +121,9 @@
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-md);
-  background: var(--bg-tertiary);
+  background: var(--bg-primary);
   border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   font-size: 0.875rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -129,6 +133,7 @@
 .feature:hover {
   border-color: var(--accent-primary);
   transform: translateX(4px);
+  box-shadow: var(--shadow-sm);
 }
 
 .feature-icon {
@@ -140,13 +145,14 @@
   padding: var(--spacing-lg);
   font-size: 1rem;
   margin-bottom: var(--spacing-lg);
+  border-radius: var(--radius-md);
 }
 
 .privacy-notice {
   padding: var(--spacing-md);
-  background: rgba(255, 107, 53, 0.05);
-  border: 1px solid rgba(255, 107, 53, 0.2);
-  border-radius: 2px;
+  background: rgba(13, 110, 253, 0.05);
+  border: 1px solid rgba(13, 110, 253, 0.2);
+  border-radius: var(--radius-sm);
 }
 
 .privacy-notice p {
@@ -165,7 +171,8 @@
   top: 0;
   z-index: 100;
   backdrop-filter: blur(10px);
-  background: rgba(21, 21, 21, 0.95);
+  background: rgba(248, 249, 250, 0.95);
+  box-shadow: var(--shadow-sm);
 }
 
 .header-content {
@@ -185,6 +192,7 @@
 .sign-out-button {
   padding: var(--spacing-sm) var(--spacing-md);
   font-size: 0.75rem;
+  border-radius: var(--radius-sm);
 }
 
 /* App Main */
@@ -219,6 +227,7 @@
 
 .app-footer a:hover {
   color: var(--accent-secondary);
+  text-decoration: underline;
 }
 
 /* Responsive */
