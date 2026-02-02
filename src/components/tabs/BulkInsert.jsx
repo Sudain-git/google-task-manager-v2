@@ -33,6 +33,41 @@ function BulkInsert() {
     }
   }
 
+  function calculateEstimate(taskCount) {
+    let delayPerTask;
+    
+    if (taskCount < 100) {
+      delayPerTask = 100; // 100ms
+    } else if (taskCount < 500) {
+      delayPerTask = 250; // 250ms
+    } else {
+      delayPerTask = 500; // 500ms
+    }
+    
+    // Add 10% buffer for API overhead and potential retries
+    const totalMs = taskCount * delayPerTask * 1.1;
+    const totalSeconds = Math.ceil(totalMs / 1000);
+    
+    return {
+      seconds: totalSeconds,
+      formatted: formatEstimatedTime(totalSeconds)
+    };
+  }
+
+  function formatEstimatedTime(seconds) {
+    if (seconds < 60) {
+      return `~${seconds} seconds`;
+    } else if (seconds < 3600) {
+      const minutes = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return secs > 0 ? `~${minutes}m ${secs}s` : `~${minutes} minutes`;
+    } else {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return minutes > 0 ? `~${hours}h ${minutes}m` : `~${hours} hours`;
+    }
+  }
+
   async function handleBulkInsert() {
     // Validation
     if (!selectedList) {
@@ -55,13 +90,6 @@ function BulkInsert() {
       alert('No valid task titles found');
       return;
     }
-
-    // Confirm
-    const confirmed = window.confirm(
-      `Insert ${titles.length} task(s) into the selected list?`
-    );
-
-    if (!confirmed) return;
 
     try {
       setIsLoading(true);
@@ -109,6 +137,10 @@ function BulkInsert() {
     );
   }
 
+  // Calculate current task count and estimate
+  const taskCount = taskTitles.split('\n').filter(l => l.trim()).length;
+  const estimate = taskCount > 0 ? calculateEstimate(taskCount) : null;
+
   return (
     <div>
       <div className="tab-header">
@@ -143,7 +175,12 @@ function BulkInsert() {
         <h3>Task Titles</h3>
         <div className="form-group">
           <label htmlFor="task-titles">
-            One task title per line ({taskTitles.split('\n').filter(l => l.trim()).length} tasks)
+            One task title per line ({taskCount} task{taskCount !== 1 ? 's' : ''})
+            {estimate && taskCount > 10 && (
+              <span style={{ color: 'var(--accent-primary)', marginLeft: 'var(--spacing-sm)' }}>
+                · Estimated time: {estimate.formatted}
+              </span>
+            )}
           </label>
           <textarea
             id="task-titles"
@@ -156,6 +193,41 @@ function BulkInsert() {
           />
         </div>
       </div>
+
+      {/* Time Estimate Card */}
+      {taskCount > 50 && !isLoading && !results && (
+        <div style={{
+          padding: 'var(--spacing-lg)',
+          background: 'var(--bg-tertiary)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 'var(--radius-md)',
+          marginBottom: 'var(--spacing-lg)'
+        }}>
+          <h3 style={{ 
+            fontSize: '0.875rem', 
+            marginBottom: 'var(--spacing-sm)',
+            color: 'var(--text-secondary)'
+          }}>
+            ⏱️ Estimated Time
+          </h3>
+          <p style={{ 
+            fontSize: '1.25rem', 
+            fontWeight: '700',
+            color: 'var(--accent-primary)',
+            margin: 0 
+          }}>
+            {estimate.formatted}
+          </p>
+          <p style={{ 
+            fontSize: '0.75rem', 
+            color: 'var(--text-tertiary)',
+            marginTop: 'var(--spacing-xs)',
+            marginBottom: 0
+          }}>
+            for {taskCount} tasks ({taskCount < 100 ? 'fast' : taskCount < 500 ? 'moderate' : 'conservative'} rate)
+          </p>
+        </div>
+      )}
 
       {/* Progress Indicator */}
       {isLoading && (
