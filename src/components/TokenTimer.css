@@ -1,0 +1,76 @@
+.token-timer {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: calc(var(--spacing-sm)/2) calc(var(--spacing-md) /2); /* Match sign-out button padding */
+  border-radius: var(--radius-sm); /* Match sign-out button radius */
+  font-family: var(--font-mono);
+  font-size: 0.5rem; /* Match sign-out button font size */
+  font-weight: 700;
+  transition: all var(--transition-base);
+  border: 1px solid transparent;
+}
+
+.timer-label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.75rem;
+}
+
+.timer-value {
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 60px;
+  text-align: right;
+}
+
+/* Status colors */
+.token-timer.good {
+  background: rgba(56, 161, 105, 0.1);
+  border-color: rgba(56, 161, 105, 0.3);
+  color: var(--accent-success);
+}
+
+.token-timer.warning {
+  background: rgba(221, 107, 32, 0.1);
+  border-color: rgba(221, 107, 32, 0.3);
+  color: var(--accent-warning);
+}
+
+.token-timer.critical {
+  background: rgba(229, 62, 62, 0.1);
+  border-color: rgba(229, 62, 62, 0.3);
+  color: var(--accent-error);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.token-timer.expired {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+  color: var(--text-tertiary);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .token-timer {
+    font-size: 0.75rem;
+  }
+
+  .timer-label {
+    font-size: 0.65rem;
+  }
+
+  .timer-value {
+    font-size: 0.875rem;
+    min-width: 50px;
+  }
+}

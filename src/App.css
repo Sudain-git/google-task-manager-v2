@@ -181,12 +181,20 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-direction: row;
 }
 
 .app-title {
   font-size: 1.5rem;
   margin: 0;
   color: var(--accent-primary);
+}
+
+.header-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-md);
 }
 
 .sign-out-button {
@@ -252,5 +260,23 @@
 
   .app-title {
     font-size: 1.25rem;
+  }
+}
+
+/* Only stack on very small mobile screens */
+@media (max-width: 480px) {
+  .header-content {
+    flex-direction: column;
+    gap: var(--spacing-md);
+    align-items: stretch;
+  }
+
+  .header-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .header-actions button {
+    width: 100%;
   }
 }

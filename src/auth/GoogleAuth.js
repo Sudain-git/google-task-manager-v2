@@ -38,6 +38,7 @@ class GoogleAuth {
     this.currentUser = null;
     this.tokenClient = null;
     this.accessToken = null;
+    this.tokenExpiresAt = null; // Add this line
     
     // Callbacks for auth state changes
     this.onAuthStateChanged = null;
@@ -136,7 +137,7 @@ class GoogleAuth {
   /**
    * Create the OAuth token client
    */
-  createTokenClient() {
+createTokenClient() {
     this.tokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: this.clientId,
       scope: this.scope,
@@ -150,6 +151,26 @@ class GoogleAuth {
         // Store access token
         this.accessToken = response.access_token;
         this.isSignedIn = true;
+        
+        // Calculate and store expiration time
+        // Google tokens expire in 3600 seconds (1 hour) by default
+        const expiresIn = response.expires_in || 3600;
+        
+        // Get current timestamp
+        const now = Date.now();
+        const newExpiration = now + (expiresIn * 1000);
+        
+        console.log('[Auth] ===== TOKEN UPDATE =====');
+        console.log('[Auth] Current timestamp:', now);
+        console.log('[Auth] Old expiration timestamp:', this.tokenExpiresAt);
+        console.log('[Auth] New expiration timestamp:', newExpiration);
+        console.log('[Auth] Current time:', new Date(now).toLocaleTimeString());
+        console.log('[Auth] New expiration time:', new Date(newExpiration).toLocaleTimeString());
+        console.log('[Auth] Expires in:', expiresIn, 'seconds');
+        console.log('[Auth] ===========================');
+        
+        // Update expiration
+        this.tokenExpiresAt = newExpiration;
         
         // Set token for gapi client
         window.gapi.client.setToken({
@@ -292,6 +313,73 @@ class GoogleAuth {
       console.error('[Auth] Failed to parse token:', error);
       return null;
     }
+  }
+
+
+  /**
+   * Get token expiration time in milliseconds
+  */
+  getTokenExpiresAt() {
+    return this.tokenExpiresAt;
+  }
+
+  /**
+   * Get remaining time in seconds
+   */
+  getRemainingTime() {
+    if (!this.tokenExpiresAt) return 0;
+    const remaining = Math.floor((this.tokenExpiresAt - Date.now()) / 1000);
+    return Math.max(0, remaining);
+  }
+
+  /**
+   * Check if token is about to expire (less than 5 minutes)
+   */
+  isTokenExpiringSoon() {
+    return this.getRemainingTime() < 300; // 5 minutes
+  }
+
+
+/**
+   * Refresh token silently
+   */
+  async refreshToken() {
+    if (!this.tokenClient) {
+      throw new Error('Token client not initialized');
+    }
+
+    console.log('[Auth] Refreshing token...');
+    
+    return new Promise((resolve, reject) => {
+      // Request new token - this will trigger the existing callback
+      // The callback will update tokenExpiresAt automatically
+      
+      // Store original callback temporarily
+      const originalCallback = this.tokenClient.callback;
+      let callbackExecuted = false;
+      
+      this.tokenClient.callback = (response) => {
+        if (callbackExecuted) return;
+        callbackExecuted = true;
+        
+        // Call the original callback to update token and expiration
+        originalCallback(response);
+        
+        if (response.error) {
+          console.error('[Auth] Refresh failed:', response);
+          reject(new Error('Failed to refresh token'));
+          return;
+        }
+        
+        console.log('[Auth] Token refreshed successfully');
+        console.log('[Auth] New expiration:', new Date(this.tokenExpiresAt).toLocaleTimeString());
+        
+        resolve();
+      };
+      
+      // Request new token
+      this.tokenClient.requestAccessToken({ prompt: '' });
+    });
   }
 }
 

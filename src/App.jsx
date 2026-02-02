@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { googleAuth } from './auth/GoogleAuth';
 import TabNavigation from './components/TabNavigation';
+import TokenTimer from './components/TokenTimer';
 import './App.css';
 
 function App() {
@@ -137,9 +138,12 @@ function App() {
       <header className="app-header">
         <div className="header-content">
           <h1 className="app-title">Task Manager V2</h1>
-          <button onClick={handleSignOut} className="sign-out-button">
-            Sign Out
-          </button>
+          <div className="header-actions">
+            <TokenTimer />
+            <button onClick={handleSignOut} className="sign-out-button">
+              Sign Out
+            </button>
+          </div>
         </div>
       </header>
 
