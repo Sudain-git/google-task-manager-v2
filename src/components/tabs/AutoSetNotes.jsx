@@ -326,33 +326,42 @@ async function handleProcessTasks() {
             Tasks with YouTube URLs and empty notes ready for processing
           </p>
 
-          {/* Prioritized Channels Info */}
-          <div style={{
+          {/* Prioritized Channels Info - Collapsible */}
+          <details style={{
             marginTop: 'var(--spacing-md)',
             paddingTop: 'var(--spacing-md)',
             borderTop: '1px solid var(--border-color)'
           }}>
-            <h4 style={{
+            <summary style={{
+              cursor: 'pointer',
               fontSize: '0.75rem',
               textTransform: 'uppercase',
               letterSpacing: '0.05em',
               color: 'var(--text-secondary)',
-              marginBottom: 'var(--spacing-sm)'
+              marginBottom: 'var(--spacing-sm)',
+              userSelect: 'none',
+              listStyle: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--spacing-xs)'
             }}>
-              Prioritized Channels (will include channel name):
-            </h4>
+              <span style={{ fontSize: '0.875rem' }}>▶</span>
+              Prioritized Channels ({PRIORITIZED_CHANNELS.length} channels will include channel name)
+            </summary>
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
               gap: 'var(--spacing-xs)',
               fontSize: '0.75rem',
-              color: 'var(--text-tertiary)'
+              color: 'var(--text-tertiary)',
+              marginTop: 'var(--spacing-md)',
+              paddingLeft: 'var(--spacing-md)'
             }}>
               {PRIORITIZED_CHANNELS.map(channel => (
                 <div key={channel}>• {channel}</div>
               ))}
             </div>
-          </div>
+          </details>
         </div>
       )}
 
