@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { taskAPI } from '../../utils/taskApi';
 import FetchingIndicator from '../FetchingIndicator';
 
@@ -27,12 +27,18 @@ function BulkSetDates() {
   const [sortDirection, setSortDirection] = useState('asc'); // 'asc', 'desc'
   const [sortedTasks, setSortedTasks] = useState([]);
   
-  // Preview states
-  const [previewLimit, setPreviewLimit] = useState(10);
-  
+  // Preview/pagination states
+  const [filteredPageSize, setFilteredPageSize] = useState(10);
+  const [filteredPage, setFilteredPage] = useState(1);
+  const [selectedPageSize, setSelectedPageSize] = useState(10);
+  const [selectedPage, setSelectedPage] = useState(1);
+
+  // Selection states
+  const [selectedTasks, setSelectedTasks] = useState([]);
+
   // Due date assignment states
   const [startDate, setStartDate] = useState('');
-  const [frequency, setFrequency] = useState('same'); // 'same', 'interval', 'weekdays'
+  const [frequency, setFrequency] = useState('interval'); // 'same', 'interval'
   const [intervalAmount, setIntervalAmount] = useState(1);
   const [intervalUnit, setIntervalUnit] = useState('days'); // 'days', 'weeks', 'months'
   
@@ -44,7 +50,32 @@ function BulkSetDates() {
   // Load task lists on mount
   useEffect(() => {
     loadTaskLists();
-  }, []);
+  }, []); 
+  
+// Auto-apply filters whenever filter criteria or allTasks change
+  useEffect(() => {
+    if (allTasks.length > 0) {
+      handleApplyFilters();
+    }
+  }, [searchText, searchIn, searchLogic, hasDueDate, hasParent, hasNotes, dateRangeStart, dateRangeEnd, allTasks]);
+
+  // Auto-apply sort whenever filtered tasks or sort criteria change
+  useEffect(() => {
+    handleApplySort();
+  }, [filteredTasks, sortBy, sortDirection]);
+
+  // Reset filtered page when sorted tasks change
+  useEffect(() => {
+    setFilteredPage(1);
+  }, [sortedTasks]);
+
+  // Reset selected page when selection changes significantly
+  useEffect(() => {
+    const maxPage = Math.ceil(selectedTasks.length / selectedPageSize) || 1;
+    if (selectedPage > maxPage) {
+      setSelectedPage(maxPage);
+    }
+  }, [selectedTasks.length, selectedPageSize, selectedPage]);
 
   async function loadTaskLists() {
     try {
@@ -63,8 +94,8 @@ function BulkSetDates() {
     }
   }
 
-  async function handleFetchTasks() {
-    if (!selectedList) {
+  async function handleFetchTasks(listId) {
+    if (!listId) {
       alert('Please select a task list');
       return;
     }
@@ -77,7 +108,7 @@ function BulkSetDates() {
       setResults(null);
 
       console.log('[BulkSetDates] Fetching all tasks from list...');
-      const tasks = await taskAPI.getAllTasksFromList(selectedList, false, false);
+      const tasks = await taskAPI.getAllTasksFromList(listId, false, false);
       
       // Filter out completed tasks automatically
       const activeTasks = tasks.filter(task => task.status !== 'completed');
@@ -93,13 +124,185 @@ function BulkSetDates() {
     }
   }
 
-  function handleApplyFilters() {
-    // TODO: Implement in Phase 2
+const handleApplyFilters = useCallback(() => {
     console.log('[BulkSetDates] Applying filters...');
-    alert('Filter logic will be implemented in Phase 2!');
+    
+    let filtered = [...allTasks];
+
+    // Search text filter
+    if (searchText.trim()) {
+      const terms = searchText.split(',').map(t => t.trim().toLowerCase()).filter(t => t);
+      
+      filtered = filtered.filter(task => {
+        const titleText = task.title.toLowerCase();
+        const notesText = (task.notes || '').toLowerCase();
+        
+        let searchTarget = '';
+        if (searchIn === 'title') searchTarget = titleText;
+        else if (searchIn === 'notes') searchTarget = notesText;
+        else searchTarget = titleText + ' ' + notesText;
+
+        if (searchLogic === 'AND') {
+          return terms.every(term => searchTarget.includes(term));
+        } else {
+          return terms.some(term => searchTarget.includes(term));
+        }
+      });
+    }
+
+    // Has due date filter
+    if (hasDueDate !== 'either') {
+      filtered = filtered.filter(task => {
+        const hasDue = !!task.due;
+        return hasDueDate === 'yes' ? hasDue : !hasDue;
+      });
+    }
+
+    // Has parent filter
+    if (hasParent !== 'either') {
+      filtered = filtered.filter(task => {
+        const hasParentTask = !!task.parent;
+        return hasParent === 'yes' ? hasParentTask : !hasParentTask;
+      });
+    }
+
+    // Has notes filter
+    if (hasNotes !== 'either') {
+      filtered = filtered.filter(task => {
+        const hasTaskNotes = !!(task.notes && task.notes.trim());
+        return hasNotes === 'yes' ? hasTaskNotes : !hasTaskNotes;
+      });
+    }
+
+    // Date range filter (creation date)
+    if (dateRangeStart) {
+      const startDate = new Date(dateRangeStart);
+      filtered = filtered.filter(task => {
+        if (!task.updated) return false;
+        const taskDate = new Date(task.updated);
+        return taskDate >= startDate;
+      });
+    }
+
+    if (dateRangeEnd) {
+      const endDate = new Date(dateRangeEnd);
+      endDate.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(task => {
+        if (!task.updated) return false;
+        const taskDate = new Date(task.updated);
+        return taskDate <= endDate;
+      });
+    }
+
+    setFilteredTasks(filtered);
+    console.log(`[BulkSetDates] Filtered to ${filtered.length} tasks from ${allTasks.length} total`);
+  }, [allTasks, searchText, searchIn, searchLogic, hasDueDate, hasParent, hasNotes, dateRangeStart, dateRangeEnd]);
+
+
+  /**
+   * Parse duration from notes string
+   * Examples: "43 sec" -> 43, "7 min" -> 420, "1 hour 15 min" -> 4500
+   * Returns seconds, or Infinity if no duration found
+   */
+  function parseDuration(notes) {
+    if (!notes) return Infinity;
+    
+    const noteText = notes.toLowerCase();
+    
+    // Match patterns like "43 sec", "7 min", "1 hour 15 min"
+    const hourMatch = noteText.match(/(\d+)\s*hour/);
+    const minMatch = noteText.match(/(\d+)\s*min/);
+    const secMatch = noteText.match(/(\d+)\s*sec/);
+    
+    let totalSeconds = 0;
+    
+    if (hourMatch) totalSeconds += parseInt(hourMatch[1]) * 3600;
+    if (minMatch) totalSeconds += parseInt(minMatch[1]) * 60;
+    if (secMatch) totalSeconds += parseInt(secMatch[1]);
+    
+    // If no duration found, return Infinity (will sort to end)
+    return totalSeconds > 0 ? totalSeconds : Infinity;
   }
 
-  function handleClear() {
+const handleApplySort = useCallback(() => {
+    if (filteredTasks.length === 0) {
+      setSortedTasks([]);
+      return;
+    }
+
+    console.log('[BulkSetDates] Applying sort...');
+    
+    let sorted = [...filteredTasks];
+
+    switch (sortBy) {
+      case 'alphabetical':
+        sorted.sort((a, b) => {
+          const titleA = a.title.toLowerCase();
+          const titleB = b.title.toLowerCase();
+          return sortDirection === 'asc' 
+            ? titleA.localeCompare(titleB)
+            : titleB.localeCompare(titleA);
+        });
+        break;
+
+      case 'created':
+        sorted.sort((a, b) => {
+          const dateA = a.updated ? new Date(a.updated).getTime() : 0;
+          const dateB = b.updated ? new Date(b.updated).getTime() : 0;
+          return sortDirection === 'asc' 
+            ? dateA - dateB
+            : dateB - dateA;
+        });
+        break;
+
+      case 'duration':
+        sorted.sort((a, b) => {
+          const durA = parseDuration(a.notes);
+          const durB = parseDuration(b.notes);
+          return sortDirection === 'asc'
+            ? durA - durB
+            : durB - durA;
+        });
+        break;
+
+      case 'dueDate':
+        sorted.sort((a, b) => {
+          const dueA = a.due ? new Date(a.due).getTime() : Infinity;
+          const dueB = b.due ? new Date(b.due).getTime() : Infinity;
+          return sortDirection === 'asc'
+            ? dueA - dueB
+            : dueB - dueA;
+        });
+        break;
+
+      default:
+        break;
+    }
+
+    setSortedTasks(sorted);
+    console.log(`[BulkSetDates] Sorted ${sorted.length} tasks by ${sortBy} (${sortDirection})`);
+  }, [filteredTasks, sortBy, sortDirection]);
+
+/**
+   * Format seconds back to readable duration for display
+   */
+  function formatDurationPreview(seconds) {
+    if (seconds === Infinity || seconds === 0) return '';
+    
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return minutes > 0 ? `${hours} hour ${minutes} min` : `${hours} hour`;
+    } else if (minutes > 0) {
+      return `${minutes} min`;
+    } else {
+      return `${secs} sec`;
+    }
+  }
+
+function handleClear() {
     setSearchText('');
     setSearchIn('both');
     setSearchLogic('AND');
@@ -111,6 +314,7 @@ function BulkSetDates() {
     setAllTasks([]);
     setFilteredTasks([]);
     setSortedTasks([]);
+    setSelectedTasks([]); // Add this
     setResults(null);
     setProgress({ current: 0, total: 0 });
   }
@@ -122,6 +326,114 @@ function BulkSetDates() {
         <p className="text-center">Loading task lists...</p>
       </div>
     );
+  }
+
+  /**
+   * Calculate due date for a task based on frequency settings
+   */
+  function calculateDueDate(startDateStr, taskIndex, freq, amount, unit) {
+    // Parse date string as local date to avoid timezone issues
+    const [year, month, day] = startDateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+
+    if (freq === 'same') {
+      // All tasks get the same date
+      return date;
+    } else if (freq === 'interval') {
+      // Add interval * taskIndex
+      const totalAmount = amount * taskIndex;
+
+      if (unit === 'days') {
+        date.setDate(date.getDate() + totalAmount);
+      } else if (unit === 'weekdays') {
+        // First, move start date to a weekday if it's on a weekend
+        let dayOfWeek = date.getDay();
+        while (dayOfWeek === 0 || dayOfWeek === 6) {
+          date.setDate(date.getDate() + 1);
+          dayOfWeek = date.getDay();
+        }
+        // Then add totalAmount weekdays
+        let weekdaysAdded = 0;
+        while (weekdaysAdded < totalAmount) {
+          date.setDate(date.getDate() + 1);
+          dayOfWeek = date.getDay();
+          if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            weekdaysAdded++;
+          }
+        }
+      } else if (unit === 'weeks') {
+        date.setDate(date.getDate() + (totalAmount * 7));
+      } else if (unit === 'months') {
+        date.setMonth(date.getMonth() + totalAmount);
+      }
+
+      return date;
+    }
+
+    return date;
+  }
+
+  /**
+   * Apply due dates to selected tasks
+   */
+  async function handleApplyDueDates() {
+    if (!startDate) {
+      alert('Please select a start date');
+      return;
+    }
+
+    if (selectedTasks.length === 0) {
+      alert('Please select at least one task');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setProgress({ current: 0, total: selectedTasks.length });
+      setResults(null);
+
+      console.log('[BulkSetDates] Applying due dates...');
+
+      // Get selected tasks in sorted order
+      const tasksToUpdate = sortedTasks.filter(task => selectedTasks.includes(task.id));
+
+      // Prepare updates with calculated due dates
+      const updates = tasksToUpdate.map((task, index) => {
+        const dueDate = calculateDueDate(startDate, index, frequency, intervalAmount, intervalUnit);
+        
+        return {
+          taskId: task.id,
+          updates: {
+            due: dueDate.toISOString()
+          }
+        };
+      });
+
+      console.log(`[BulkSetDates] Prepared ${updates.length} due date updates`);
+
+      // Perform bulk update
+      const result = await taskAPI.bulkUpdateTasks(
+        selectedList,
+        updates,
+        (current, total) => setProgress({ current, total }),
+        true // stopOnFailure
+      );
+
+      // Show results
+      setResults(result);
+
+      // Clear selection on success
+      if (result.failed.length === 0 && !result.stopped) {
+        setSelectedTasks([]);
+        setStartDate('');
+      }
+
+    } catch (error) {
+      console.error('Failed to apply due dates:', error);
+      alert('Failed to apply due dates: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -141,7 +453,12 @@ function BulkSetDates() {
           <select
             id="task-list"
             value={selectedList}
-            onChange={(e) => setSelectedList(e.target.value)}
+            onChange={(e) => {
+              setSelectedList(e.target.value);
+              if (e.target.value) {
+                handleFetchTasks(e.target.value);
+              }
+            }}
             disabled={isLoading || isFetching}
           >
             <option value="">Select a list...</option>
@@ -152,14 +469,6 @@ function BulkSetDates() {
             ))}
           </select>
         </div>
-        
-        <button
-          onClick={handleFetchTasks}
-          disabled={!selectedList || isLoading || isFetching}
-          style={{ marginTop: 'var(--spacing-md)' }}
-        >
-          {isFetching ? 'Loading Tasks...' : 'Load Tasks'}
-        </button>
       </div>
 
       {/* Fetching Indicator */}
@@ -170,123 +479,60 @@ function BulkSetDates() {
         />
       )}
 
-      {/* Filter Section */}
+{/* Filter & Sort Section */}
       {allTasks.length > 0 && (
         <div className="form-section">
-          <h3>Filter Tasks ({allTasks.length} active tasks)</h3>
+          <h3>Filter & Sort Tasks ({allTasks.length} active tasks)</h3>
           
-          {/* Search Text */}
-          <div className="form-group">
-            <label htmlFor="search-text">Search Text (separate terms with commas for multiple)</label>
-            <input
-              id="search-text"
-              type="text"
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              placeholder="e.g., video, tutorial"
-              disabled={isLoading}
-            />
-          </div>
+            <div className="bulk-dates-filter-grid">
 
-          {/* Search Options */}
-          <div className="form-row">
-            <div className="form-group">
-              <label>Search In</label>
-              <div style={{ display: 'flex', gap: 'var(--spacing-md)', flexWrap: 'wrap' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)', textTransform: 'none' }}>
-                  <input
-                    type="radio"
-                    name="searchIn"
-                    value="title"
-                    checked={searchIn === 'title'}
-                    onChange={(e) => setSearchIn(e.target.value)}
-                    disabled={isLoading}
-                  />
-                  Title
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)', textTransform: 'none' }}>
-                  <input
-                    type="radio"
-                    name="searchIn"
-                    value="notes"
-                    checked={searchIn === 'notes'}
-                    onChange={(e) => setSearchIn(e.target.value)}
-                    disabled={isLoading}
-                  />
-                  Notes
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)', textTransform: 'none' }}>
-                  <input
-                    type="radio"
-                    name="searchIn"
-                    value="both"
-                    checked={searchIn === 'both'}
-                    onChange={(e) => setSearchIn(e.target.value)}
-                    disabled={isLoading}
-                  />
-                  Both
-                </label>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label>Search Logic (for multiple terms)</label>
-              <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)', textTransform: 'none' }}>
-                  <input
-                    type="radio"
-                    name="searchLogic"
-                    value="AND"
-                    checked={searchLogic === 'AND'}
-                    onChange={(e) => setSearchLogic(e.target.value)}
-                    disabled={isLoading}
-                  />
-                  AND (all terms)
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)', textTransform: 'none' }}>
-                  <input
-                    type="radio"
-                    name="searchLogic"
-                    value="OR"
-                    checked={searchLogic === 'OR'}
-                    onChange={(e) => setSearchLogic(e.target.value)}
-                    disabled={isLoading}
-                  />
-                  OR (any term)
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* Date Range Filter */}
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="date-range-start">Created After (optional)</label>
+            {/* Search Text */}
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label htmlFor="search-text">Search (comma-separated for multiple)</label>
               <input
-                id="date-range-start"
-                type="date"
-                value={dateRangeStart}
-                onChange={(e) => setDateRangeStart(e.target.value)}
+                id="search-text"
+                type="text"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="e.g., video, tutorial"
                 disabled={isLoading}
               />
             </div>
-            <div className="form-group">
-              <label htmlFor="date-range-end">Created Before (optional)</label>
-              <input
-                id="date-range-end"
-                type="date"
-                value={dateRangeEnd}
-                onChange={(e) => setDateRangeEnd(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-          </div>
 
-          {/* Boolean Filters */}
-          <div className="form-row">
+            {/* Search In */}
             <div className="form-group">
-              <label>Has Due Date</label>
+              <label htmlFor="search-in">Search In</label>
               <select
+                id="search-in"
+                value={searchIn}
+                onChange={(e) => setSearchIn(e.target.value)}
+                disabled={isLoading}
+              >
+                <option value="both">Both</option>
+                <option value="title">Title</option>
+                <option value="notes">Notes</option>
+              </select>
+            </div>
+
+            {/* Search Logic */}
+            <div className="form-group">
+              <label htmlFor="search-logic">Logic</label>
+              <select
+                id="search-logic"
+                value={searchLogic}
+                onChange={(e) => setSearchLogic(e.target.value)}
+                disabled={isLoading}
+              >
+                <option value="AND">AND (all)</option>
+                <option value="OR">OR (any)</option>
+              </select>
+            </div>
+
+            {/* Has Due Date */}
+            <div className="form-group">
+              <label htmlFor="has-due-date">Has Due Date</label>
+              <select
+                id="has-due-date"
                 value={hasDueDate}
                 onChange={(e) => setHasDueDate(e.target.value)}
                 disabled={isLoading}
@@ -297,9 +543,11 @@ function BulkSetDates() {
               </select>
             </div>
 
+            {/* Has Parent */}
             <div className="form-group">
-              <label>Has Parent Task</label>
+              <label htmlFor="has-parent">Has Parent</label>
               <select
+                id="has-parent"
                 value={hasParent}
                 onChange={(e) => setHasParent(e.target.value)}
                 disabled={isLoading}
@@ -310,9 +558,11 @@ function BulkSetDates() {
               </select>
             </div>
 
+            {/* Has Notes */}
             <div className="form-group">
-              <label>Has Notes</label>
+              <label htmlFor="has-notes">Has Notes</label>
               <select
+                id="has-notes"
                 value={hasNotes}
                 onChange={(e) => setHasNotes(e.target.value)}
                 disabled={isLoading}
@@ -322,31 +572,660 @@ function BulkSetDates() {
                 <option value="no">No</option>
               </select>
             </div>
+
+            {/* Date Range */}
+            <div className="form-group">
+              <label htmlFor="date-range-start">Created After</label>
+              <input
+                id="date-range-start"
+                type="date"
+                value={dateRangeStart}
+                onChange={(e) => setDateRangeStart(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="date-range-end">Created Before</label>
+              <input
+                id="date-range-end"
+                type="date"
+                value={dateRangeEnd}
+                onChange={(e) => setDateRangeEnd(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+
+            {/* Sort By */}
+            <div className="form-group">
+              <label htmlFor="sort-by">Sort By</label>
+              <select
+                id="sort-by"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                disabled={isLoading}
+              >
+                <option value="alphabetical">Alphabetical</option>
+                <option value="created">Creation Date</option>
+                <option value="duration">Duration (from notes)</option>
+                <option value="dueDate">Current Due Date</option>
+              </select>
+            </div>
+
+            {/* Sort Direction */}
+            <div className="form-group">
+              <label htmlFor="sort-direction">Direction</label>
+              <select
+                id="sort-direction"
+                value={sortDirection}
+                onChange={(e) => setSortDirection(e.target.value)}
+                disabled={isLoading}
+              >
+                <option value="asc">
+                  {sortBy === 'alphabetical' ? 'A → Z' :
+                   sortBy === 'created' ? 'Oldest First' :
+                   sortBy === 'duration' ? 'Shortest First' :
+                   sortBy === 'dueDate' ? 'Earliest First' : 'Ascending'}
+                </option>
+                <option value="desc">
+                  {sortBy === 'alphabetical' ? 'Z → A' :
+                   sortBy === 'created' ? 'Newest First' :
+                   sortBy === 'duration' ? 'Longest First' :
+                   sortBy === 'dueDate' ? 'Latest First' : 'Descending'}
+                </option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
+{/* Filtered & Sorted Results with Selection (Side by Side) */}
+      {sortedTasks.length > 0 && (
+          <div className="form-section">
+            <div className="bulk-dates-grid">
+            {/* Left: Filtered & Sorted Results */}
+            <div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 'var(--spacing-md)'
+              }}>
+                <h3 style={{ margin: 0 }}>
+                  Filtered & Sorted ({sortedTasks.length})
+                </h3>
+                
+                <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+                  <select
+                    value={filteredPageSize}
+                    onChange={(e) => {
+                      setFilteredPageSize(Number(e.target.value));
+                      setFilteredPage(1);
+                    }}
+                    disabled={isLoading}
+                    style={{ padding: 'var(--spacing-xs)', fontSize: '0.75rem' }}
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <button
+                    onClick={() => setSelectedTasks(sortedTasks.map(t => t.id))}
+                    disabled={isLoading}
+                    style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                  >
+                    Select All
+                  </button>
+                  <button
+                    onClick={() => setSelectedTasks([])}
+                    disabled={isLoading || selectedTasks.length === 0}
+                    style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+              
+              <div style={{
+                padding: 'var(--spacing-md)',
+                background: 'var(--bg-tertiary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-md)',
+                maxHeight: '500px',
+                overflowY: 'auto'
+              }}>
+                {sortedTasks.slice((filteredPage - 1) * filteredPageSize, filteredPage * filteredPageSize).map((task, index) => {
+                  const isSelected = selectedTasks.includes(task.id);
+                  
+                  return (
+                    <div
+                      key={task.id}
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedTasks(prev => prev.filter(id => id !== task.id));
+                        } else {
+                          setSelectedTasks(prev => [...prev, task.id]);
+                        }
+                      }}
+                      style={{
+                        padding: 'var(--spacing-sm)',
+                        marginBottom: 'var(--spacing-xs)',
+                        background: isSelected ? 'rgba(49, 130, 206, 0.1)' : 'var(--bg-primary)',
+                        border: isSelected ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '0.875rem',
+                        cursor: 'pointer',
+                        transition: 'all var(--transition-fast)',
+                        display: 'flex',
+                        gap: 'var(--spacing-md)',
+                        alignItems: 'flex-start'
+                      }}
+                    >
+                      <div style={{
+                        minWidth: '20px',
+                        height: '20px',
+                        border: '2px solid var(--accent-primary)',
+                        borderRadius: 'var(--radius-sm)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        background: isSelected ? 'var(--accent-primary)' : 'transparent',
+                        color: 'white',
+                        fontSize: '0.75rem',
+                        fontWeight: '700',
+                        marginTop: '2px'
+                      }}>
+                        {isSelected && '✓'}
+                      </div>
+                      
+                      <div style={{
+                        minWidth: '30px',
+                        fontWeight: '700',
+                        color: 'var(--accent-primary)',
+                        fontSize: '0.75rem'
+                      }}>
+                        {(filteredPage - 1) * filteredPageSize + index + 1}.
+                      </div>
+                      
+                      <div style={{ flex: 1, minWidth: 0 }}> {/* Add minWidth: 0 */}
+                        <div style={{
+                          fontWeight: '600',
+                          marginBottom: 'var(--spacing-xs)',
+                          overflow: 'hidden',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical'
+                        }}>
+                          {task.title}
+                        </div>
+                        
+                        <div style={{ 
+                          fontSize: '0.75rem', 
+                          color: 'var(--text-tertiary)',
+                          display: 'flex',
+                          gap: 'var(--spacing-md)',
+                          flexWrap: 'wrap'
+                        }}>
+                          {task.due && (
+                            <span>📅 {new Date(task.due).toLocaleDateString()}</span>
+                          )}
+                          {task.notes && parseDuration(task.notes) !== Infinity && (
+                            <span>⏱️ {formatDurationPreview(parseDuration(task.notes))}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                {sortedTasks.length > filteredPageSize && (() => {
+                  const totalPages = Math.ceil(sortedTasks.length / filteredPageSize);
+                  const startItem = (filteredPage - 1) * filteredPageSize + 1;
+                  const endItem = Math.min(filteredPage * filteredPageSize, sortedTasks.length);
+                  return (
+                    <div style={{
+                      padding: 'var(--spacing-md)',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: 'var(--spacing-md)',
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.875rem'
+                    }}>
+                      <button
+                        onClick={() => setFilteredPage(p => Math.max(1, p - 1))}
+                        disabled={filteredPage === 1}
+                        style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                      >
+                        Prev
+                      </button>
+                      <span>
+                        {startItem}-{endItem} of {sortedTasks.length} (Page {filteredPage}/{totalPages})
+                      </span>
+                      <button
+                        onClick={() => setFilteredPage(p => Math.min(totalPages, p + 1))}
+                        disabled={filteredPage === totalPages}
+                        style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+{/* Right: Selected Tasks (Always visible) */}
+            <div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 'var(--spacing-md)'
+              }}>
+                <h3 style={{ margin: 0 }}>
+                  Selected Tasks ({selectedTasks.length})
+                </h3>
+                {selectedTasks.length > 0 && (
+                  <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+                    <select
+                      value={selectedPageSize}
+                      onChange={(e) => {
+                        setSelectedPageSize(Number(e.target.value));
+                        setSelectedPage(1);
+                      }}
+                      disabled={isLoading}
+                      style={{ padding: 'var(--spacing-xs)', fontSize: '0.75rem' }}
+                    >
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                    <button
+                      onClick={() => setSelectedTasks([])}
+                      disabled={isLoading}
+                      style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {selectedTasks.length > 0 ? (
+                <div style={{
+                  padding: 'var(--spacing-md)',
+                  background: 'rgba(49, 130, 206, 0.05)',
+                  border: '2px solid var(--accent-primary)',
+                  borderRadius: 'var(--radius-md)',
+                  maxHeight: '500px',
+                  overflowY: 'auto'
+                }}>
+                  {sortedTasks
+                    .filter(task => selectedTasks.includes(task.id))
+                    .slice((selectedPage - 1) * selectedPageSize, selectedPage * selectedPageSize)
+                    .map((task, index) => (
+                      <div
+                        key={task.id}
+                        style={{
+                          padding: 'var(--spacing-sm)',
+                          marginBottom: 'var(--spacing-xs)',
+                          background: 'var(--bg-primary)',
+                          border: '1px solid var(--accent-primary)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.875rem',
+                          display: 'flex',
+                          gap: 'var(--spacing-md)',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <div style={{
+                          minWidth: '30px',
+                          fontWeight: '700',
+                          color: 'var(--accent-primary)',
+                          fontSize: '0.75rem'
+                        }}>
+                          {(selectedPage - 1) * selectedPageSize + index + 1}.
+                        </div>
+
+                        <div style={{
+                          flex: 1,
+                          fontWeight: '600',
+                          minWidth: 0,
+                          overflow: 'hidden',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical'
+                        }}>
+                          {task.title}
+                        </div>
+
+                        <button
+                          onClick={() => setSelectedTasks(prev => prev.filter(id => id !== task.id))}
+                          style={{
+                            padding: 'var(--spacing-xs)',
+                            fontSize: '0.75rem',
+                            background: 'transparent',
+                            border: '1px solid var(--accent-error)',
+                            color: 'var(--accent-error)',
+                            cursor: 'pointer',
+                            borderRadius: 'var(--radius-sm)',
+                            flexShrink: 0
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+
+                  {selectedTasks.length > selectedPageSize && (() => {
+                    const totalPages = Math.ceil(selectedTasks.length / selectedPageSize);
+                    const startItem = (selectedPage - 1) * selectedPageSize + 1;
+                    const endItem = Math.min(selectedPage * selectedPageSize, selectedTasks.length);
+                    return (
+                      <div style={{
+                        padding: 'var(--spacing-md)',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: 'var(--spacing-md)',
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.875rem'
+                      }}>
+                        <button
+                          onClick={() => setSelectedPage(p => Math.max(1, p - 1))}
+                          disabled={selectedPage === 1}
+                          style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                        >
+                          Prev
+                        </button>
+                        <span>
+                          {startItem}-{endItem} of {selectedTasks.length} (Page {selectedPage}/{totalPages})
+                        </span>
+                        <button
+                          onClick={() => setSelectedPage(p => Math.min(totalPages, p + 1))}
+                          disabled={selectedPage === totalPages}
+                          style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div style={{
+                  padding: 'var(--spacing-xl)',
+                  background: 'var(--bg-tertiary)',
+                  border: '1px dashed var(--border-color)',
+                  borderRadius: 'var(--radius-md)',
+                  textAlign: 'center',
+                  color: 'var(--text-tertiary)',
+                  fontSize: '0.875rem',
+                  minHeight: '200px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  No tasks selected. Click tasks on the left to select them.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* No Results */}
+      {allTasks.length > 0 && sortedTasks.length === 0 && (
+        <div style={{
+          padding: 'var(--spacing-lg)',
+          background: 'var(--bg-tertiary)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 'var(--radius-md)',
+          textAlign: 'center',
+          color: 'var(--text-secondary)',
+          marginBottom: 'var(--spacing-lg)'
+        }}>
+          No tasks match the current filters. Try adjusting your filter criteria.
+        </div>
+      )}
+      
+      {/* Due Date Assignment */}
+      {selectedTasks.length > 0 && (
+        <div className="form-section">
+          <h3>Assign Due Dates ({selectedTasks.length} task{selectedTasks.length !== 1 ? 's' : ''})</h3>
+          
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 'var(--spacing-md)',
+            marginBottom: 'var(--spacing-md)',
+            justifyContent: 'space-between'
+          }}>
+            {/* Start Date */}
+            <div className="form-group">
+              <label htmlFor="start-date">Start Date</label>
+              <input
+                id="start-date"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+
+            {/* Frequency Type */}
+            <div className="form-group">
+              <label htmlFor="frequency">Frequency</label>
+              <select
+                id="frequency"
+                value={frequency}
+                onChange={(e) => setFrequency(e.target.value)}
+                disabled={isLoading}
+              >
+                <option value="same">Same date for all</option>
+                <option value="interval">Interval</option>
+              </select>
+            </div>
+
+            {/* Interval Amount */}
+            <div className="form-group">
+              <label htmlFor="interval-amount">Every</label>
+              <input
+                id="interval-amount"
+                type="number"
+                min="0"
+                value={frequency === 'same' ? 0 : intervalAmount}
+                onChange={(e) => setIntervalAmount(Math.max(1, parseInt(e.target.value) || 1))}
+                disabled={isLoading || frequency === 'same'}
+                style={{ width: '60px' }}
+              />
+            </div>
+
+            {/* Interval Unit */}
+            <div className="form-group">
+              <label htmlFor="interval-unit">Unit</label>
+              <select
+                id="interval-unit"
+                value={frequency === 'same' ? 'days' : intervalUnit}
+                onChange={(e) => setIntervalUnit(e.target.value)}
+                disabled={isLoading || frequency === 'same'}
+              >
+                <option value="days">Days</option>
+                <option value="weekdays">Weekdays</option>
+                <option value="weeks">Weeks</option>
+                <option value="months">Months</option>
+              </select>
+            </div>
           </div>
 
-          {/* Apply Filters Button */}
+          {/* Weekend Start Date Notice */}
+          {startDate && intervalUnit === 'weekdays' && (() => {
+            const [year, month, day] = startDate.split('-').map(Number);
+            const date = new Date(year, month - 1, day);
+            const dayOfWeek = date.getDay();
+            if (dayOfWeek === 0 || dayOfWeek === 6) {
+              // Find next Monday
+              const nextMonday = new Date(date);
+              while (nextMonday.getDay() !== 1) {
+                nextMonday.setDate(nextMonday.getDate() + 1);
+              }
+              return (
+                <div style={{
+                  padding: 'var(--spacing-sm) var(--spacing-md)',
+                  background: 'rgba(237, 137, 54, 0.1)',
+                  border: '1px solid var(--accent-warning, #ed8936)',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: 'var(--spacing-md)',
+                  fontSize: '0.875rem',
+                  color: 'var(--accent-warning, #ed8936)'
+                }}>
+                  Start date falls on a weekend. First task will be assigned to Monday {nextMonday.toLocaleDateString()}.
+                </div>
+              );
+            }
+            return null;
+          })()}
+
+          {/* Preview Due Dates */}
+          {startDate && (
+            <div style={{
+              padding: 'var(--spacing-md)',
+              background: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 'var(--radius-md)',
+              marginBottom: 'var(--spacing-md)'
+            }}>
+              <h4 style={{
+                fontSize: '0.875rem',
+                marginBottom: 'var(--spacing-sm)',
+                color: 'var(--text-secondary)'
+              }}>
+                Preview Due Dates (first 5 tasks)
+              </h4>
+              
+              {sortedTasks
+                .filter(task => selectedTasks.includes(task.id))
+                .slice(0, 5)
+                .map((task, index) => {
+                  const dueDate = calculateDueDate(startDate, index, frequency, intervalAmount, intervalUnit);
+                  return (
+                    <div
+                      key={task.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: 'var(--spacing-xs)',
+                        marginBottom: 'var(--spacing-xs)',
+                        fontSize: '0.875rem'
+                      }}
+                    >
+                      <span style={{
+                        flex: 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        marginRight: 'var(--spacing-md)'
+                      }}>
+                        {index + 1}. {task.title}
+                      </span>
+                      <span style={{
+                        fontWeight: '700',
+                        color: 'var(--accent-primary)'
+                      }}>
+                        → {dueDate.toLocaleDateString()}
+                      </span>
+                    </div>
+                  );
+                })}
+              
+              {selectedTasks.length > 5 && (
+                <div style={{
+                  textAlign: 'center',
+                  color: 'var(--text-tertiary)',
+                  fontSize: '0.75rem',
+                  marginTop: 'var(--spacing-sm)'
+                }}>
+                  ... and {selectedTasks.length - 5} more task{selectedTasks.length - 5 !== 1 ? 's' : ''}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Apply Button */}
           <button
-            onClick={handleApplyFilters}
-            disabled={isLoading}
             className="primary"
-            style={{ marginTop: 'var(--spacing-md)' }}
+            onClick={handleApplyDueDates}
+            disabled={!startDate || isLoading}
+            style={{ width: '100%' }}
           >
-            Apply Filters
+            {isLoading ? 'Applying Due Dates...' : `Apply Due Dates to ${selectedTasks.length} Task${selectedTasks.length !== 1 ? 's' : ''}`}
           </button>
         </div>
       )}
 
-      {/* Actions */}
-      <div className="form-actions">
-        <button
-          onClick={handleClear}
-          disabled={isLoading}
-        >
-          Clear All
-        </button>
-      </div>
+      {/* Progress Indicator */}
+      {isLoading && (
+        <div className="form-section">
+          <div className="progress-container">
+            <div className="progress-header">
+              <span className="progress-label">Applying Due Dates...</span>
+              <span className="progress-count">
+                {progress.current} / {progress.total}
+              </span>
+            </div>
+            <div className="progress-bar">
+              <div 
+                className="progress-fill"
+                style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Results Display */}
+      {results && (
+        <div className="form-section">
+          <div className="results-container">
+            <div className="results-summary">
+              <div className="result-stat">
+                <span className="result-stat-value success">
+                  {results.successful.length}
+                </span>
+                <span className="result-stat-label">Successful</span>
+              </div>
+              <div className="result-stat">
+                <span className="result-stat-value error">
+                  {results.failed.length}
+                </span>
+                <span className="result-stat-label">Failed</span>
+              </div>
+            </div>
+
+            {results.failed.length > 0 && (
+              <details className="results-details">
+                <summary>View Failed Updates</summary>
+                <div className="results-list">
+                  {results.failed.map((item, index) => (
+                    <div key={index} className="result-item error">
+                      {item.taskId}: {item.error}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+
 
 export default BulkSetDates;
