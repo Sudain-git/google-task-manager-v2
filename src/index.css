@@ -282,3 +282,23 @@ label {
   background: var(--accent-primary);
   color: #ffffff;
 }
+
+/* Responsive grid for bulk set dates */
+.bulk-dates-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--spacing-lg);
+}
+
+@media (max-width: 1024px) {
+  .bulk-dates-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.bulk-dates-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
