@@ -107,28 +107,153 @@ class TaskAPI {
   }
 
   /**
-   * Move a task to a different position or parent
-   * @param {string} taskListId - The task list ID
+   * Move a task to a different position, parent, or list
+   * @param {string} taskListId - The source task list ID
    * @param {string} taskId - The task ID to move
    * @param {string} parent - New parent task ID (optional)
    * @param {string} previous - Previous sibling task ID (optional)
+   * @param {string} destinationTasklist - Destination list ID for cross-list moves (optional)
    */
-  async moveTask(taskListId, taskId, parent = null, previous = null) {
+  async moveTask(taskListId, taskId, parent = null, previous = null, destinationTasklist = null) {
     try {
       const params = {
         tasklist: taskListId,
         task: taskId
       };
-      
+
       if (parent) params.parent = parent;
       if (previous) params.previous = previous;
-      
+      if (destinationTasklist) params.destinationTasklist = destinationTasklist;
+
       const response = await window.gapi.client.tasks.tasks.move(params);
       return response.result;
     } catch (error) {
       console.error('[API] Failed to move task:', error);
       throw this.handleError(error);
     }
+  }
+
+  /**
+   * Bulk move tasks to a different list with rate limiting and retry logic
+   * @param {string} sourceListId - The source task list ID
+   * @param {string} destinationListId - The destination task list ID
+   * @param {Array} taskIds - Array of task IDs to move
+   * @param {Function} onProgress - Progress callback (current, total, currentTaskTitle)
+   * @param {boolean} stopOnFailure - Stop processing if a task fails (default: true)
+   */
+  async bulkMoveTasks(sourceListId, destinationListId, taskIds, onProgress = null, stopOnFailure = true) {
+    const results = {
+      successful: [],
+      failed: [],
+      stopped: false
+    };
+
+    // Use adaptive delay logic
+    let currentDelay = this.batchDelay;
+    let maxRetries = this.maxRetries;
+
+    if (taskIds.length > 1000) {
+      currentDelay = 1200;
+      maxRetries = 7;
+    } else if (taskIds.length > 500) {
+      currentDelay = 900;
+      maxRetries = 6;
+    } else if (taskIds.length > 100) {
+      currentDelay = 400;
+      maxRetries = 5;
+    } else {
+      maxRetries = 3;
+    }
+
+    console.log(`[API] Starting bulk move of ${taskIds.length} tasks with ${currentDelay}ms delay and ${maxRetries} max retries`);
+    console.log(`[API] Stop on failure: ${stopOnFailure}`);
+
+    let consecutiveErrors = 0;
+    const maxConsecutiveErrors = 5;
+
+    for (let i = 0; i < taskIds.length; i++) {
+      const taskId = taskIds[i];
+      let retries = 0;
+      let success = false;
+      let lastError = null;
+
+      while (retries < maxRetries && !success) {
+        try {
+          const result = await this.moveTask(sourceListId, taskId, null, null, destinationListId);
+          results.successful.push({ taskId, result });
+          success = true;
+          consecutiveErrors = 0;
+
+          // Gradually speed up if no errors
+          if (taskIds.length > 100 && currentDelay > this.batchDelay && consecutiveErrors === 0) {
+            currentDelay = Math.max(this.batchDelay * 2, currentDelay - 50);
+          }
+
+        } catch (error) {
+          lastError = error;
+          retries++;
+          consecutiveErrors++;
+
+          const errorMsg = error.message || error.result?.error?.message || error.toString() || '';
+          console.warn(`[API] Error on task ${i + 1}/${taskIds.length} (attempt ${retries}/${maxRetries}):`, errorMsg || 'Unknown error');
+
+          // Check if it's a rate limit error
+          if (errorMsg.includes('Rate limit') ||
+              errorMsg.includes('429') ||
+              errorMsg.includes('403') ||
+              errorMsg.includes('quota') ||
+              error.status === 429 ||
+              error.status === 403) {
+
+            console.warn(`[API] Rate limit/quota hit (status: ${error.status}), slowing down significantly...`);
+
+            currentDelay = Math.min(currentDelay * 3, 10000);
+
+            const backoffDelay = currentDelay * (retries + 1) * 3;
+            console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
+            await this.delay(backoffDelay);
+
+          } else {
+            await this.delay(this.batchDelay * Math.pow(2, retries));
+          }
+
+          if (consecutiveErrors >= maxConsecutiveErrors) {
+            console.warn(`[API] ${consecutiveErrors} consecutive errors, pausing for 10 seconds...`);
+            await this.delay(10000);
+            consecutiveErrors = 0;
+          }
+
+          if (retries >= maxRetries) {
+            const failureMsg = errorMsg || 'Unknown error after maximum retries';
+            results.failed.push({ taskId, error: failureMsg });
+            console.error(`[API] Failed to move task after ${retries} attempts:`, taskId);
+
+            if (stopOnFailure) {
+              console.error('[API] Stopping bulk move due to failure');
+              results.stopped = true;
+              break;
+            }
+          }
+        }
+      }
+
+      // If we failed and should stop, break out of loop
+      if (!success && stopOnFailure) {
+        break;
+      }
+
+      if (onProgress) {
+        onProgress(i + 1, taskIds.length);
+      }
+
+      if (i < taskIds.length - 1) {
+        await this.delay(currentDelay);
+      }
+    }
+
+    console.log(`[API] Bulk move ${results.stopped ? 'STOPPED' : 'complete'}: ${results.successful.length} successful, ${results.failed.length} failed`);
+
+    return results;
   }
 
 /**
