@@ -377,7 +377,7 @@ function handleClear() {
    * Apply due dates to selected tasks
    */
   async function handleApplyDueDates() {
-    if (!startDate) {
+    if (frequency !== 'clear' && !startDate) {
       alert('Please select a start date');
       return;
     }
@@ -389,25 +389,41 @@ function handleClear() {
 
     try {
       setIsLoading(true);
-      setProgress({ current: 0, total: selectedTasks.length });
       setResults(null);
-
-      console.log('[BulkSetDates] Applying due dates...');
 
       // Get selected tasks in sorted order
       const tasksToUpdate = sortedTasks.filter(task => selectedTasks.includes(task.id));
 
-      // Prepare updates with calculated due dates
-      const updates = tasksToUpdate.map((task, index) => {
-        const dueDate = calculateDueDate(startDate, index, frequency, intervalAmount, intervalUnit);
-        
-        return {
+      let updates;
+      if (frequency === 'clear') {
+        // Only clear tasks that have a due date
+        const tasksWithDueDate = tasksToUpdate.filter(task => task.due);
+        console.log(`[BulkSetDates] Clearing due dates from ${tasksWithDueDate.length} tasks...`);
+
+        setProgress({ current: 0, total: tasksWithDueDate.length });
+
+        updates = tasksWithDueDate.map(task => ({
           taskId: task.id,
           updates: {
-            due: dueDate.toISOString()
+            due: null
           }
-        };
-      });
+        }));
+      } else {
+        console.log('[BulkSetDates] Applying due dates...');
+        setProgress({ current: 0, total: tasksToUpdate.length });
+
+        // Prepare updates with calculated due dates
+        updates = tasksToUpdate.map((task, index) => {
+          const dueDate = calculateDueDate(startDate, index, frequency, intervalAmount, intervalUnit);
+
+          return {
+            taskId: task.id,
+            updates: {
+              due: dueDate.toISOString()
+            }
+          };
+        });
+      }
 
       console.log(`[BulkSetDates] Prepared ${updates.length} due date updates`);
 
@@ -1011,9 +1027,9 @@ function handleClear() {
               <input
                 id="start-date"
                 type="date"
-                value={startDate}
+                value={frequency === 'clear' ? '' : startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                disabled={isLoading}
+                disabled={isLoading || frequency === 'clear'}
               />
             </div>
 
@@ -1028,6 +1044,7 @@ function handleClear() {
               >
                 <option value="same">Same date for all</option>
                 <option value="interval">Interval</option>
+                <option value="clear">Clear due date</option>
               </select>
             </div>
 
@@ -1038,9 +1055,9 @@ function handleClear() {
                 id="interval-amount"
                 type="number"
                 min="0"
-                value={frequency === 'same' ? 0 : intervalAmount}
+                value={frequency === 'same' || frequency === 'clear' ? 0 : intervalAmount}
                 onChange={(e) => setIntervalAmount(Math.max(1, parseInt(e.target.value) || 1))}
-                disabled={isLoading || frequency === 'same'}
+                disabled={isLoading || frequency === 'same' || frequency === 'clear'}
                 style={{ width: '60px' }}
               />
             </div>
@@ -1050,9 +1067,9 @@ function handleClear() {
               <label htmlFor="interval-unit">Unit</label>
               <select
                 id="interval-unit"
-                value={frequency === 'same' ? 'days' : intervalUnit}
+                value={frequency === 'same' || frequency === 'clear' ? 'days' : intervalUnit}
                 onChange={(e) => setIntervalUnit(e.target.value)}
-                disabled={isLoading || frequency === 'same'}
+                disabled={isLoading || frequency === 'same' || frequency === 'clear'}
               >
                 <option value="days">Days</option>
                 <option value="weekdays">Weekdays</option>
@@ -1063,7 +1080,7 @@ function handleClear() {
           </div>
 
           {/* Weekend Start Date Notice */}
-          {startDate && intervalUnit === 'weekdays' && (() => {
+          {startDate && frequency !== 'clear' && intervalUnit === 'weekdays' && (() => {
             const [year, month, day] = startDate.split('-').map(Number);
             const date = new Date(year, month - 1, day);
             const dayOfWeek = date.getDay();
@@ -1091,7 +1108,7 @@ function handleClear() {
           })()}
 
           {/* Preview Due Dates */}
-          {startDate && (
+          {(startDate || frequency === 'clear') && (
             <div style={{
               padding: 'var(--spacing-md)',
               background: 'var(--bg-tertiary)',
@@ -1104,54 +1121,118 @@ function handleClear() {
                 marginBottom: 'var(--spacing-sm)',
                 color: 'var(--text-secondary)'
               }}>
-                Preview Due Dates (first 5 tasks)
+                {frequency === 'clear' ? 'Tasks with due dates to clear (first 5)' : 'Preview Due Dates (first 5 tasks)'}
               </h4>
-              
-              {sortedTasks
-                .filter(task => selectedTasks.includes(task.id))
-                .slice(0, 5)
-                .map((task, index) => {
-                  const dueDate = calculateDueDate(startDate, index, frequency, intervalAmount, intervalUnit);
-                  return (
-                    <div
-                      key={task.id}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: 'var(--spacing-xs)',
-                        marginBottom: 'var(--spacing-xs)',
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      <span style={{
-                        flex: 1,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        marginRight: 'var(--spacing-md)'
-                      }}>
-                        {index + 1}. {task.title}
-                      </span>
-                      <span style={{
-                        fontWeight: '700',
-                        color: 'var(--accent-primary)'
-                      }}>
-                        → {dueDate.toLocaleDateString()}
-                      </span>
+
+              {frequency === 'clear' ? (
+                <>
+                  {(() => {
+                    const tasksWithDueDate = sortedTasks
+                      .filter(task => selectedTasks.includes(task.id) && task.due);
+                    return (
+                      <>
+                        {tasksWithDueDate.slice(0, 5).map((task, index) => (
+                          <div
+                            key={task.id}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              padding: 'var(--spacing-xs)',
+                              marginBottom: 'var(--spacing-xs)',
+                              fontSize: '0.875rem'
+                            }}
+                          >
+                            <span style={{
+                              flex: 1,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              marginRight: 'var(--spacing-md)'
+                            }}>
+                              {index + 1}. {task.title}
+                            </span>
+                            <span style={{
+                              fontWeight: '700',
+                              color: 'var(--accent-error, #e53e3e)'
+                            }}>
+                              {new Date(task.due).toLocaleDateString()} → (clear)
+                            </span>
+                          </div>
+                        ))}
+                        {tasksWithDueDate.length > 5 && (
+                          <div style={{
+                            textAlign: 'center',
+                            color: 'var(--text-tertiary)',
+                            fontSize: '0.75rem',
+                            marginTop: 'var(--spacing-sm)'
+                          }}>
+                            ... and {tasksWithDueDate.length - 5} more task{tasksWithDueDate.length - 5 !== 1 ? 's' : ''}
+                          </div>
+                        )}
+                        {tasksWithDueDate.length === 0 && (
+                          <div style={{
+                            textAlign: 'center',
+                            color: 'var(--text-tertiary)',
+                            fontSize: '0.875rem',
+                            padding: 'var(--spacing-md)'
+                          }}>
+                            No selected tasks have due dates to clear.
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </>
+              ) : (
+                <>
+                  {sortedTasks
+                    .filter(task => selectedTasks.includes(task.id))
+                    .slice(0, 5)
+                    .map((task, index) => {
+                      const dueDate = calculateDueDate(startDate, index, frequency, intervalAmount, intervalUnit);
+                      return (
+                        <div
+                          key={task.id}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: 'var(--spacing-xs)',
+                            marginBottom: 'var(--spacing-xs)',
+                            fontSize: '0.875rem'
+                          }}
+                        >
+                          <span style={{
+                            flex: 1,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            marginRight: 'var(--spacing-md)'
+                          }}>
+                            {index + 1}. {task.title}
+                          </span>
+                          <span style={{
+                            fontWeight: '700',
+                            color: 'var(--accent-primary)'
+                          }}>
+                            → {dueDate.toLocaleDateString()}
+                          </span>
+                        </div>
+                      );
+                    })}
+
+                  {selectedTasks.length > 5 && (
+                    <div style={{
+                      textAlign: 'center',
+                      color: 'var(--text-tertiary)',
+                      fontSize: '0.75rem',
+                      marginTop: 'var(--spacing-sm)'
+                    }}>
+                      ... and {selectedTasks.length - 5} more task{selectedTasks.length - 5 !== 1 ? 's' : ''}
                     </div>
-                  );
-                })}
-              
-              {selectedTasks.length > 5 && (
-                <div style={{
-                  textAlign: 'center',
-                  color: 'var(--text-tertiary)',
-                  fontSize: '0.75rem',
-                  marginTop: 'var(--spacing-sm)'
-                }}>
-                  ... and {selectedTasks.length - 5} more task{selectedTasks.length - 5 !== 1 ? 's' : ''}
-                </div>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -1160,10 +1241,16 @@ function handleClear() {
           <button
             className="primary"
             onClick={handleApplyDueDates}
-            disabled={!startDate || isLoading}
+            disabled={(frequency !== 'clear' && !startDate) || isLoading}
             style={{ width: '100%' }}
           >
-            {isLoading ? 'Applying Due Dates...' : `Apply Due Dates to ${selectedTasks.length} Task${selectedTasks.length !== 1 ? 's' : ''}`}
+            {isLoading
+              ? (frequency === 'clear' ? 'Clearing Due Dates...' : 'Applying Due Dates...')
+              : (frequency === 'clear'
+                  ? `Clear Due Dates from ${sortedTasks.filter(t => selectedTasks.includes(t.id) && t.due).length} Task${sortedTasks.filter(t => selectedTasks.includes(t.id) && t.due).length !== 1 ? 's' : ''}`
+                  : `Apply Due Dates to ${selectedTasks.length} Task${selectedTasks.length !== 1 ? 's' : ''}`
+                )
+            }
           </button>
         </div>
       )}
@@ -1173,7 +1260,7 @@ function handleClear() {
         <div className="form-section">
           <div className="progress-container">
             <div className="progress-header">
-              <span className="progress-label">Applying Due Dates...</span>
+              <span className="progress-label">{frequency === 'clear' ? 'Clearing Due Dates...' : 'Applying Due Dates...'}</span>
               <span className="progress-count">
                 {progress.current} / {progress.total}
               </span>
