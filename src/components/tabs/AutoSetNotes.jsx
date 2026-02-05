@@ -340,13 +340,13 @@ async function handleProcessTasks() {
               color: 'var(--text-secondary)',
               marginBottom: 'var(--spacing-sm)',
               userSelect: 'none',
-              listStyle: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--spacing-xs)'
+              padding: 'var(--spacing-sm)',
+              background: 'var(--bg-primary)',
+              borderRadius: 'var(--radius-sm)',
+              transition: 'background var(--transition-base)',
+              listStyle: 'none'
             }}>
-              <span style={{ fontSize: '0.875rem' }}>▶</span>
-              Prioritized Channels ({PRIORITIZED_CHANNELS.length} channels will include channel name)
+              ▸ Prioritized Channels ({PRIORITIZED_CHANNELS.length} channels will include channel name)
             </summary>
             <div style={{
               display: 'grid',
