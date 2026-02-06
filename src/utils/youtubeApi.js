@@ -80,6 +80,65 @@ export async function getVideoMetadata(videoId) {
 }
 
 /**
+ * Extract playlist ID from various YouTube playlist URL formats
+ * Handles:
+ * - youtube.com/playlist?list=PLxxxxx
+ * - youtube.com/watch?v=xxx&list=PLxxxxx
+ */
+export function extractPlaylistId(url) {
+  if (!url) return null;
+
+  // Match ?list=PLxxxxx or &list=PLxxxxx
+  const match = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Fetch all video IDs from a YouTube playlist
+ * Uses YouTube Data API v3 playlistItems endpoint
+ * Handles pagination (50 items per page max)
+ * Returns array of video URLs
+ */
+export async function getPlaylistVideos(playlistId) {
+  if (!YOUTUBE_API_KEY) {
+    throw new Error('YouTube API key not configured');
+  }
+
+  const videos = [];
+  let nextPageToken = null;
+
+  do {
+    const url = new URL(`${YOUTUBE_API_BASE}/playlistItems`);
+    url.searchParams.set('part', 'snippet');
+    url.searchParams.set('playlistId', playlistId);
+    url.searchParams.set('maxResults', '50');
+    url.searchParams.set('key', YOUTUBE_API_KEY);
+    if (nextPageToken) {
+      url.searchParams.set('pageToken', nextPageToken);
+    }
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || `API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    for (const item of data.items) {
+      const videoId = item.snippet?.resourceId?.videoId;
+      if (videoId) {
+        videos.push(`https://www.youtube.com/watch?v=${videoId}`);
+      }
+    }
+
+    nextPageToken = data.nextPageToken;
+  } while (nextPageToken);
+
+  return videos;
+}
+
+/**
  * Batch fetch video metadata for multiple videos
  * YouTube API allows up to 50 video IDs per request
  */

@@ -272,13 +272,13 @@ class TaskAPI {
     let currentDelay = this.batchDelay;
     let maxRetries = this.maxRetries;
     
-    if (updates.length > 1000) {
+    if (tasks.length > 1000) {
       currentDelay = 1200; // Slower - 1.2 seconds
       maxRetries = 7; // More retries
-    } else if (updates.length > 500) {
+    } else if (tasks.length > 500) {
       currentDelay = 900; // 900ms
       maxRetries = 6;
-    } else if (updates.length > 100) {
+    } else if (tasks.length > 100) {
       currentDelay = 400; // 400ms
       maxRetries = 5;
     } else {
