@@ -349,34 +349,49 @@ createTokenClient() {
     }
 
     console.log('[Auth] Refreshing token...');
-    
+
     return new Promise((resolve, reject) => {
-      // Request new token - this will trigger the existing callback
-      // The callback will update tokenExpiresAt automatically
-      
-      // Store original callback temporarily
+      // Store the original callback to restore it after refresh
       const originalCallback = this.tokenClient.callback;
-      let callbackExecuted = false;
-      
+
       this.tokenClient.callback = (response) => {
-        if (callbackExecuted) return;
-        callbackExecuted = true;
-        
-        // Call the original callback to update token and expiration
-        originalCallback(response);
-        
+        // Restore original callback immediately
+        this.tokenClient.callback = originalCallback;
+
         if (response.error) {
           console.error('[Auth] Refresh failed:', response);
           reject(new Error('Failed to refresh token'));
           return;
         }
-        
+
+        // Update token and expiration (same logic as createTokenClient)
+        this.accessToken = response.access_token;
+        this.isSignedIn = true;
+
+        const expiresIn = response.expires_in || 3600;
+        const now = Date.now();
+        const newExpiration = now + (expiresIn * 1000);
+
+        console.log('[Auth] ===== TOKEN REFRESH =====');
+        console.log('[Auth] Current timestamp:', now);
+        console.log('[Auth] Old expiration timestamp:', this.tokenExpiresAt);
+        console.log('[Auth] New expiration timestamp:', newExpiration);
+        console.log('[Auth] Current time:', new Date(now).toLocaleTimeString());
+        console.log('[Auth] New expiration time:', new Date(newExpiration).toLocaleTimeString());
+        console.log('[Auth] Expires in:', expiresIn, 'seconds');
+        console.log('[Auth] ===========================');
+
+        this.tokenExpiresAt = newExpiration;
+
+        window.gapi.client.setToken({
+          access_token: this.accessToken
+        });
+
         console.log('[Auth] Token refreshed successfully');
-        console.log('[Auth] New expiration:', new Date(this.tokenExpiresAt).toLocaleTimeString());
-        
+
         resolve();
       };
-      
+
       // Request new token
       this.tokenClient.requestAccessToken({ prompt: '' });
     });

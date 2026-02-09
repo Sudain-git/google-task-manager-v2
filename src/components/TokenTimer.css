@@ -9,6 +9,16 @@
   font-weight: 700;
   transition: all var(--transition-base);
   border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.token-timer:hover {
+  opacity: 0.8;
+  transform: scale(1.02);
+}
+
+.token-timer:active {
+  transform: scale(0.98);
 }
 
 .timer-label {
