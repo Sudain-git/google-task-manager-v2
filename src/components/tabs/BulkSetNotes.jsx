@@ -29,11 +29,6 @@ function BulkSetNotes() {
       setLoadingLists(true);
       const lists = await taskAPI.getTaskLists();
       setTaskLists(lists);
-      
-      // Auto-select first list
-      if (lists.length > 0) {
-        setSelectedList(lists[0].id);
-      }
     } catch (error) {
       console.error('Failed to load task lists:', error);
       alert('Failed to load task lists: ' + error.message);
