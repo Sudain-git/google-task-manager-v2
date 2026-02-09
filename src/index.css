@@ -302,3 +302,14 @@ label {
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-md);
 }
+
+/* Date range: own row on narrow screens, inline after Sort on wide screens */
+.dev-date-range {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 900px) {
+  .dev-date-range {
+    grid-column: auto / span 2;
+  }
+}

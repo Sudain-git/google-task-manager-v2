@@ -13,7 +13,8 @@ function Tab10() {
   const [hasDueDate, setHasDueDate] = useState('either');
   const [hasParent, setHasParent] = useState('either');
   const [hasNotes, setHasNotes] = useState('either');
-  const [dateRangeType, setDateRangeType] = useState('created');
+  const [dateRangeType, setDateRangeType] = useState('due');
+  const [dateRangePreset, setDateRangePreset] = useState('any');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
 
@@ -36,12 +37,58 @@ function Tab10() {
     loadTaskLists();
   }, []);
 
+  // Compute date range from preset (recalculates on each render so "Today" stays current)
+  function getDateRangeFromPreset(preset) {
+    const today = new Date();
+    const formatDate = (d) => d.toISOString().split('T')[0];
+
+    switch (preset) {
+      case 'today': {
+        const s = formatDate(today);
+        return { start: s, end: s };
+      }
+      case 'yesterday': {
+        const d = new Date(today);
+        d.setDate(d.getDate() - 1);
+        const s = formatDate(d);
+        return { start: s, end: s };
+      }
+      case 'last7': {
+        const d = new Date(today);
+        d.setDate(d.getDate() - 6);
+        return { start: formatDate(d), end: formatDate(today) };
+      }
+      case 'last30': {
+        const d = new Date(today);
+        d.setDate(d.getDate() - 29);
+        return { start: formatDate(d), end: formatDate(today) };
+      }
+      case 'thisMonth': {
+        const first = new Date(today.getFullYear(), today.getMonth(), 1);
+        return { start: formatDate(first), end: formatDate(today) };
+      }
+      case 'lastMonth': {
+        const first = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const last = new Date(today.getFullYear(), today.getMonth(), 0);
+        return { start: formatDate(first), end: formatDate(last) };
+      }
+      case 'thisYear': {
+        const first = new Date(today.getFullYear(), 0, 1);
+        return { start: formatDate(first), end: formatDate(today) };
+      }
+      case 'custom':
+        return { start: dateStart, end: dateEnd };
+      default: // 'any'
+        return { start: '', end: '' };
+    }
+  }
+
   // Auto-apply filters whenever filter criteria or allTasks change
   useEffect(() => {
     if (allTasks.length > 0) {
       handleApplyFilters();
     }
-  }, [searchText, searchIn, hasDueDate, hasParent, hasNotes, dateRangeType, dateStart, dateEnd, allTasks]);
+  }, [searchText, searchIn, hasDueDate, hasParent, hasNotes, dateRangeType, dateRangePreset, dateStart, dateEnd, allTasks]);
 
   // Auto-apply sort whenever filtered tasks or sort criteria change
   useEffect(() => {
@@ -142,8 +189,10 @@ function Tab10() {
       });
     }
 
-    if (dateStart) {
-      const start = new Date(dateStart);
+    const range = getDateRangeFromPreset(dateRangePreset);
+
+    if (range.start) {
+      const start = new Date(range.start);
       filtered = filtered.filter(task => {
         const field = dateRangeType === 'due' ? task.due : task.updated;
         if (!field) return false;
@@ -151,8 +200,8 @@ function Tab10() {
       });
     }
 
-    if (dateEnd) {
-      const end = new Date(dateEnd);
+    if (range.end) {
+      const end = new Date(range.end);
       end.setHours(23, 59, 59, 999);
       filtered = filtered.filter(task => {
         const field = dateRangeType === 'due' ? task.due : task.updated;
@@ -162,7 +211,7 @@ function Tab10() {
     }
 
     setFilteredTasks(filtered);
-  }, [allTasks, searchText, searchIn, hasDueDate, hasParent, hasNotes, dateRangeType, dateStart, dateEnd]);
+  }, [allTasks, searchText, searchIn, hasDueDate, hasParent, hasNotes, dateRangeType, dateRangePreset, dateStart, dateEnd]);
 
   function parseDuration(notes) {
     if (!notes) return Infinity;
@@ -386,30 +435,63 @@ function Tab10() {
             </div>
 
             {/* Date Range */}
-            <div className="form-group">
+            <div className="form-group dev-date-range">
               <label>Date Range</label>
               <div style={{ display: 'flex', gap: 'var(--spacing-xs)', alignItems: 'center' }}>
                 <select
                   value={dateRangeType}
-                  onChange={(e) => { setDateRangeType(e.target.value); setDateStart(''); setDateEnd(''); }}
-                  style={{ width: 'auto', minWidth: '130px' }}
+                  onChange={(e) => { setDateRangeType(e.target.value); }}
+                  style={{ width: `calc(${dateRangeType === 'due' ? 3 : 7}ch + 3.75rem)`, flex: 'none' }}
                 >
                   <option value="created">Created</option>
                   <option value="due">Due</option>
                 </select>
-                <input
-                  type="date"
-                  value={dateStart}
-                  onChange={(e) => setDateStart(e.target.value)}
-                  style={{ flex: 1 }}
-                />
-                <span style={{ color: 'var(--text-tertiary)' }}>to</span>
-                <input
-                  type="date"
-                  value={dateEnd}
-                  onChange={(e) => setDateEnd(e.target.value)}
-                  style={{ flex: 1 }}
-                />
+                <select
+                  value={dateRangePreset}
+                  onChange={(e) => {
+                    setDateRangePreset(e.target.value);
+                    if (e.target.value !== 'custom') {
+                      setDateStart('');
+                      setDateEnd('');
+                    }
+                  }}
+                  style={{ width: `calc(${{ any: 8, today: 5, yesterday: 9, last7: 11, last30: 12, thisMonth: 10, lastMonth: 10, thisYear: 9, custom: 9 }[dateRangePreset]}ch + 3.75rem)`, flex: 'none' }}
+                >
+                  <option value="any">Any Time</option>
+                  <option value="today">Today</option>
+                  <option value="yesterday">Yesterday</option>
+                  <option value="last7">Last 7 Days</option>
+                  <option value="last30">Last 30 Days</option>
+                  <option value="thisMonth">This Month</option>
+                  <option value="lastMonth">Last Month</option>
+                  <option value="thisYear">This Year</option>
+                  <option value="custom">Custom...</option>
+                </select>
+                {dateRangePreset === 'custom' && (
+                  <>
+                    <input
+                      type="date"
+                      value={dateStart}
+                      onChange={(e) => setDateStart(e.target.value)}
+                      style={{ flex: '1 1 0', minWidth: 'calc(10ch + 3.75rem)' }}
+                    />
+                    <span style={{ color: 'var(--text-tertiary)', flex: 'none' }}>to</span>
+                    <input
+                      type="date"
+                      value={dateEnd}
+                      onChange={(e) => setDateEnd(e.target.value)}
+                      style={{ flex: '1 1 0', minWidth: 'calc(10ch + 3.75rem)' }}
+                    />
+                  </>
+                )}
+                {dateRangePreset !== 'any' && dateRangePreset !== 'custom' && (() => {
+                  const range = getDateRangeFromPreset(dateRangePreset);
+                  return (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                      {range.start} to {range.end}
+                    </span>
+                  );
+                })()}
               </div>
             </div>
           </div>
