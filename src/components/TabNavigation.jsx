@@ -22,8 +22,8 @@ const TABS = [
   { id: 'parent-child', label: 'Parent/Child', component: ParentChild },
   { id: 'auto-notes', label: 'Auto Notes', component: AutoSetNotes },
   { id: 'youtube', label: 'YouTube Import', component: YouTubeImport },
-  { id: 'settings', label: 'Settings', component: Settings },
-  { id: 'tab10', label: 'Tab 10', component: Tab10 },
+  { id: 'settings', label: 'Reports', component: Settings },
+  { id: 'tab10', label: 'Dev', component: Tab10 },
 ];
 
 function TabNavigation() {

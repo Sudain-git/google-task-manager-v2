@@ -77,10 +77,6 @@ function BulkMove() {
       setLoadingLists(true);
       const lists = await taskAPI.getTaskLists();
       setTaskLists(lists);
-
-      if (lists.length > 0) {
-        setSourceList(lists[0].id);
-      }
     } catch (error) {
       console.error('Failed to load task lists:', error);
       alert('Failed to load task lists: ' + error.message);
