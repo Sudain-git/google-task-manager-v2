@@ -40,20 +40,46 @@ function TokenTimer() {
     try {
       console.log('[TokenTimer] Auto-refreshing token (one-time attempt)...');
       await googleAuth.refreshToken();
-      
+
       console.log('[TokenTimer] Token refresh successful');
-      
+
       // Force component to re-read the new expiration time
       setRemainingTime(googleAuth.getRemainingTime());
-      
+
       // // COMMENTED OUT: Show success notification
       // alert('Session refreshed! You have another hour.');
-      
+
     } catch (error) {
       console.error('[TokenTimer] Token refresh failed:', error);
-      
+
       // // COMMENTED OUT: Show error notification
       // alert('Failed to refresh session. Please sign in again.');
+    }
+  }
+
+  async function handleManualRefresh() {
+    console.log('[TokenTimer] ========== MANUAL REFRESH STARTED ==========');
+    console.log('[TokenTimer] Current remaining time:', remainingTime, 'seconds');
+    console.log('[TokenTimer] Token expires at:', googleAuth.getTokenExpiresAt()
+      ? new Date(googleAuth.getTokenExpiresAt()).toLocaleString() : 'N/A');
+
+    try {
+      console.log('[TokenTimer] Calling googleAuth.refreshToken()...');
+      await googleAuth.refreshToken();
+
+      const newRemaining = googleAuth.getRemainingTime();
+      console.log('[TokenTimer] Refresh successful!');
+      console.log('[TokenTimer] New remaining time:', newRemaining, 'seconds');
+      console.log('[TokenTimer] New expiration:', new Date(googleAuth.getTokenExpiresAt()).toLocaleString());
+
+      setRemainingTime(newRemaining);
+      hasRefreshed.current = false; // Reset so auto-refresh can happen again
+
+      console.log('[TokenTimer] ========== MANUAL REFRESH COMPLETE ==========');
+    } catch (error) {
+      console.error('[TokenTimer] ========== MANUAL REFRESH FAILED ==========');
+      console.error('[TokenTimer] Error:', error.message);
+      console.error('[TokenTimer] Full error:', error);
     }
   }
 
@@ -67,7 +93,11 @@ function TokenTimer() {
 
   if (remainingTime <= 0) {
     return (
-      <div className="token-timer expired">
+      <div
+        className="token-timer expired"
+        onClick={handleManualRefresh}
+        title="Click to refresh session"
+      >
         <span className="timer-label">Session:</span>
         <span className="timer-value">Expired</span>
       </div>
@@ -75,7 +105,11 @@ function TokenTimer() {
   }
 
   return (
-    <div className={`token-timer ${status}`}>
+    <div
+      className={`token-timer ${status}`}
+      onClick={handleManualRefresh}
+      title="Click to refresh session"
+    >
       <span className="timer-label">Session:</span>
       <span className="timer-value">{formatTime(remainingTime)}</span>
     </div>

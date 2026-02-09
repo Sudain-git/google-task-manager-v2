@@ -10,7 +10,7 @@ import { googleAuth } from '../auth/GoogleAuth';
 class TaskAPI {
   constructor() {
     this.batchDelay = 100; // Base delay between API calls in ms
-    this.maxRetries = 3;
+    this.maxRetries = 6;
   }
 
   /**
@@ -154,15 +154,15 @@ class TaskAPI {
 
     if (taskIds.length > 1000) {
       currentDelay = 1200;
-      maxRetries = 7;
+      maxRetries = 10;
     } else if (taskIds.length > 500) {
       currentDelay = 900;
-      maxRetries = 6;
+      maxRetries = 9;
     } else if (taskIds.length > 100) {
       currentDelay = 400;
-      maxRetries = 5;
+      maxRetries = 8;
     } else {
-      maxRetries = 3;
+      maxRetries = 6;
     }
 
     console.log(`[API] Starting bulk move of ${taskIds.length} tasks with ${currentDelay}ms delay and ${maxRetries} max retries`);
@@ -274,15 +274,15 @@ class TaskAPI {
     
     if (tasks.length > 1000) {
       currentDelay = 1200; // Slower - 1.2 seconds
-      maxRetries = 7; // More retries
+      maxRetries = 10; // More retries
     } else if (tasks.length > 500) {
       currentDelay = 900; // 900ms
-      maxRetries = 6;
+      maxRetries = 9;
     } else if (tasks.length > 100) {
       currentDelay = 400; // 400ms
-      maxRetries = 5;
+      maxRetries = 8;
     } else {
-      maxRetries = 3; // Keep 3 for small batches
+      maxRetries = 6;
     }
 
     console.log(`[API] Starting bulk insert of ${tasks.length} tasks with ${currentDelay}ms delay and ${maxRetries} max retries`);
@@ -401,15 +401,15 @@ console.warn(`[API] Rate limit/quota hit (status: ${error.status}), slowing down
     
     if (updates.length > 1000) {
       currentDelay = 1200; // Slower - 1.2 seconds
-      maxRetries = 7; // More retries
+      maxRetries = 10; // More retries
     } else if (updates.length > 500) {
       currentDelay = 900; // 900ms
-      maxRetries = 6;
+      maxRetries = 9;
     } else if (updates.length > 100) {
       currentDelay = 400; // 400ms
-      maxRetries = 5;
+      maxRetries = 8;
     } else {
-      maxRetries = 3; // Keep 3 for small batches
+      maxRetries = 6;
     }
 
     console.log(`[API] Starting bulk update of ${updates.length} tasks with ${currentDelay}ms delay and ${maxRetries} max retries`);

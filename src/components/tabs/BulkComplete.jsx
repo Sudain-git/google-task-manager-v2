@@ -9,13 +9,13 @@ function BulkComplete() {
 
   // Filter states
   const [searchText, setSearchText] = useState('');
-  const [searchIn, setSearchIn] = useState('both'); // 'title', 'notes', 'both'
-  const [searchLogic, setSearchLogic] = useState('AND'); // 'AND', 'OR'
+  const [searchIn, setSearchIn] = useState('title'); // 'title', 'notes', 'both'
   const [hasDueDate, setHasDueDate] = useState('either'); // 'yes', 'no', 'either'
   const [hasParent, setHasParent] = useState('either'); // 'yes', 'no', 'either'
   const [hasNotes, setHasNotes] = useState('either'); // 'yes', 'no', 'either'
-  const [dateRangeStart, setDateRangeStart] = useState('');
-  const [dateRangeEnd, setDateRangeEnd] = useState('');
+  const [dateRangeType, setDateRangeType] = useState('created'); // 'created', 'due'
+  const [dateStart, setDateStart] = useState('');
+  const [dateEnd, setDateEnd] = useState('');
 
   // Results states
   const [allTasks, setAllTasks] = useState([]);
@@ -51,7 +51,7 @@ function BulkComplete() {
     if (allTasks.length > 0) {
       handleApplyFilters();
     }
-  }, [searchText, searchIn, searchLogic, hasDueDate, hasParent, hasNotes, dateRangeStart, dateRangeEnd, allTasks]);
+  }, [searchText, searchIn, hasDueDate, hasParent, hasNotes, dateRangeType, dateStart, dateEnd, allTasks]);
 
   // Auto-apply sort whenever filtered tasks or sort criteria change
   useEffect(() => {
@@ -118,6 +118,28 @@ function BulkComplete() {
     }
   }
 
+  /**
+   * Evaluate search expression with && and || operators
+   * Supports: "term1 && term2", "term1 || term2", "term1, term2" (comma = AND)
+   * Mixed operators evaluated left-to-right
+   */
+  function evaluateSearchExpression(expression, target) {
+    // First, normalize commas to && (commas mean AND)
+    let normalized = expression.replace(/,/g, '&&');
+
+    // Split by || first (lower precedence)
+    const orParts = normalized.split('||').map(p => p.trim()).filter(p => p);
+
+    if (orParts.length === 0) return true;
+
+    // For each OR part, check if ALL AND terms match
+    return orParts.some(orPart => {
+      const andTerms = orPart.split('&&').map(t => t.trim()).filter(t => t);
+      if (andTerms.length === 0) return true;
+      return andTerms.every(term => target.includes(term));
+    });
+  }
+
   const handleApplyFilters = useCallback(() => {
     console.log('[BulkComplete] Applying filters...');
 
@@ -125,8 +147,6 @@ function BulkComplete() {
 
     // Search text filter
     if (searchText.trim()) {
-      const terms = searchText.split(',').map(t => t.trim().toLowerCase()).filter(t => t);
-
       filtered = filtered.filter(task => {
         const titleText = task.title.toLowerCase();
         const notesText = (task.notes || '').toLowerCase();
@@ -136,11 +156,7 @@ function BulkComplete() {
         else if (searchIn === 'notes') searchTarget = notesText;
         else searchTarget = titleText + ' ' + notesText;
 
-        if (searchLogic === 'AND') {
-          return terms.every(term => searchTarget.includes(term));
-        } else {
-          return terms.some(term => searchTarget.includes(term));
-        }
+        return evaluateSearchExpression(searchText.toLowerCase(), searchTarget);
       });
     }
 
@@ -168,29 +184,29 @@ function BulkComplete() {
       });
     }
 
-    // Date range filter (creation date)
-    if (dateRangeStart) {
-      const startDate = new Date(dateRangeStart);
+    // Date range filter (based on selected type)
+    if (dateStart) {
+      const startDate = new Date(dateStart);
       filtered = filtered.filter(task => {
-        if (!task.updated) return false;
-        const taskDate = new Date(task.updated);
-        return taskDate >= startDate;
+        const field = dateRangeType === 'due' ? task.due : task.updated;
+        if (!field) return false;
+        return new Date(field) >= startDate;
       });
     }
 
-    if (dateRangeEnd) {
-      const endDate = new Date(dateRangeEnd);
+    if (dateEnd) {
+      const endDate = new Date(dateEnd);
       endDate.setHours(23, 59, 59, 999);
       filtered = filtered.filter(task => {
-        if (!task.updated) return false;
-        const taskDate = new Date(task.updated);
-        return taskDate <= endDate;
+        const field = dateRangeType === 'due' ? task.due : task.updated;
+        if (!field) return false;
+        return new Date(field) <= endDate;
       });
     }
 
     setFilteredTasks(filtered);
     console.log(`[BulkComplete] Filtered to ${filtered.length} tasks from ${allTasks.length} total`);
-  }, [allTasks, searchText, searchIn, searchLogic, hasDueDate, hasParent, hasNotes, dateRangeStart, dateRangeEnd]);
+  }, [allTasks, searchText, searchIn, hasDueDate, hasParent, hasNotes, dateRangeType, dateStart, dateEnd]);
 
   /**
    * Parse duration from notes string
@@ -293,13 +309,13 @@ function BulkComplete() {
 
   function handleClear() {
     setSearchText('');
-    setSearchIn('both');
-    setSearchLogic('AND');
+    setSearchIn('title');
     setHasDueDate('either');
     setHasParent('either');
     setHasNotes('either');
-    setDateRangeStart('');
-    setDateRangeEnd('');
+    setDateRangeType('created');
+    setDateStart('');
+    setDateEnd('');
     setAllTasks([]);
     setFilteredTasks([]);
     setSortedTasks([]);
@@ -465,13 +481,13 @@ function BulkComplete() {
 
             {/* Search Text */}
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-              <label htmlFor="search-text">Search (comma-separated for multiple)</label>
+              <label htmlFor="search-text">Search (use && for AND, || for OR)</label>
               <input
                 id="search-text"
                 type="text"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
-                placeholder="e.g., video, tutorial"
+                placeholder="e.g., video && tutorial, or video || guide"
                 disabled={isLoading}
               />
             </div>
@@ -488,20 +504,6 @@ function BulkComplete() {
                 <option value="both">Both</option>
                 <option value="title">Title</option>
                 <option value="notes">Notes</option>
-              </select>
-            </div>
-
-            {/* Search Logic */}
-            <div className="form-group">
-              <label htmlFor="search-logic">Logic</label>
-              <select
-                id="search-logic"
-                value={searchLogic}
-                onChange={(e) => setSearchLogic(e.target.value)}
-                disabled={isLoading}
-              >
-                <option value="AND">AND (all)</option>
-                <option value="OR">OR (any)</option>
               </select>
             </div>
 
@@ -550,67 +552,59 @@ function BulkComplete() {
               </select>
             </div>
 
+            {/* Sort */}
+            <div className="form-group">
+              <label htmlFor="sort">Sort</label>
+              <select
+                id="sort"
+                value={`${sortBy}-${sortDirection}`}
+                onChange={(e) => {
+                  const [newSortBy, newDirection] = e.target.value.split('-');
+                  setSortBy(newSortBy);
+                  setSortDirection(newDirection);
+                }}
+                disabled={isLoading}
+              >
+                <option value="alphabetical-asc">Alphabetical A → Z</option>
+                <option value="alphabetical-desc">Alphabetical Z → A</option>
+                <option value="created-asc">Created Oldest First</option>
+                <option value="created-desc">Created Newest First</option>
+                <option value="duration-asc">Duration Shortest First</option>
+                <option value="duration-desc">Duration Longest First</option>
+                <option value="dueDate-asc">Due Date Earliest First</option>
+                <option value="dueDate-desc">Due Date Latest First</option>
+              </select>
+            </div>
+
             {/* Date Range */}
             <div className="form-group">
-              <label htmlFor="date-range-start">Created After</label>
-              <input
-                id="date-range-start"
-                type="date"
-                value={dateRangeStart}
-                onChange={(e) => setDateRangeStart(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="date-range-end">Created Before</label>
-              <input
-                id="date-range-end"
-                type="date"
-                value={dateRangeEnd}
-                onChange={(e) => setDateRangeEnd(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-
-            {/* Sort By */}
-            <div className="form-group">
-              <label htmlFor="sort-by">Sort By</label>
-              <select
-                id="sort-by"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                disabled={isLoading}
-              >
-                <option value="alphabetical">Alphabetical</option>
-                <option value="created">Creation Date</option>
-                <option value="duration">Duration (from notes)</option>
-                <option value="dueDate">Current Due Date</option>
-              </select>
-            </div>
-
-            {/* Sort Direction */}
-            <div className="form-group">
-              <label htmlFor="sort-direction">Direction</label>
-              <select
-                id="sort-direction"
-                value={sortDirection}
-                onChange={(e) => setSortDirection(e.target.value)}
-                disabled={isLoading}
-              >
-                <option value="asc">
-                  {sortBy === 'alphabetical' ? 'A → Z' :
-                   sortBy === 'created' ? 'Oldest First' :
-                   sortBy === 'duration' ? 'Shortest First' :
-                   sortBy === 'dueDate' ? 'Earliest First' : 'Ascending'}
-                </option>
-                <option value="desc">
-                  {sortBy === 'alphabetical' ? 'Z → A' :
-                   sortBy === 'created' ? 'Newest First' :
-                   sortBy === 'duration' ? 'Longest First' :
-                   sortBy === 'dueDate' ? 'Latest First' : 'Descending'}
-                </option>
-              </select>
+              <label>Date Range</label>
+              <div style={{ display: 'flex', gap: 'var(--spacing-xs)', alignItems: 'center' }}>
+                <select
+                  value={dateRangeType}
+                  onChange={(e) => { setDateRangeType(e.target.value); setDateStart(''); setDateEnd(''); }}
+                  disabled={isLoading}
+                  style={{ width: 'auto', minWidth: '130px' }}
+                >
+                  <option value="created">Created</option>
+                  <option value="due">Due</option>
+                </select>
+                <input
+                  type="date"
+                  value={dateStart}
+                  onChange={(e) => setDateStart(e.target.value)}
+                  disabled={isLoading}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ color: 'var(--text-tertiary)' }}>to</span>
+                <input
+                  type="date"
+                  value={dateEnd}
+                  onChange={(e) => setDateEnd(e.target.value)}
+                  disabled={isLoading}
+                  style={{ flex: 1 }}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -737,6 +731,20 @@ function BulkComplete() {
                         }}>
                           {task.title}
                         </div>
+
+                        {task.notes && (
+                          <div style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--text-tertiary)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontStyle: 'italic',
+                            marginBottom: 'var(--spacing-xs)'
+                          }}>
+                            {task.notes}
+                          </div>
+                        )}
 
                         <div style={{
                           fontSize: '0.75rem',
@@ -871,16 +879,29 @@ function BulkComplete() {
                           {(selectedPage - 1) * selectedPageSize + index + 1}.
                         </div>
 
-                        <div style={{
-                          flex: 1,
-                          fontWeight: '600',
-                          minWidth: 0,
-                          overflow: 'hidden',
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical'
-                        }}>
-                          {task.title}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontWeight: '600',
+                            overflow: 'hidden',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical'
+                          }}>
+                            {task.title}
+                          </div>
+                          {task.notes && (
+                            <div style={{
+                              fontSize: '0.75rem',
+                              color: 'var(--text-tertiary)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontStyle: 'italic',
+                              marginTop: 'var(--spacing-xs)'
+                            }}>
+                              {task.notes}
+                            </div>
+                          )}
                         </div>
 
                         <button
