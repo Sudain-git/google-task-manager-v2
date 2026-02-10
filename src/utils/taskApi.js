@@ -11,6 +11,57 @@ class TaskAPI {
   constructor() {
     this.batchDelay = 100; // Base delay between API calls in ms
     this.maxRetries = 6;
+    this.currentDelay = 0;
+    this.onDelayChange = null;
+
+    // RPS tracking
+    this._rpsTimestamps = [];
+    this.currentRps = 0;
+    this.onRpsChange = null;
+
+    // TTR tracking
+    this._recoveryStartTime = null;
+    this.onTtrChange = null;
+  }
+
+  /**
+   * Update and broadcast the current delay value
+   */
+  _setDelay(value) {
+    this.currentDelay = value;
+    this.onDelayChange?.(value);
+  }
+
+  _trackRequest() {
+    const now = Date.now();
+    this._rpsTimestamps.push(now);
+    this._rpsTimestamps = this._rpsTimestamps.filter(t => t > now - 5000);
+    this.currentRps = Math.round((this._rpsTimestamps.length / 5) * 100) / 100;
+    this.onRpsChange?.(this.currentRps);
+  }
+
+  _resetRps() {
+    this._rpsTimestamps = [];
+    this.currentRps = 0;
+    this.onRpsChange?.(0);
+  }
+
+  _startRecovery() {
+    this._recoveryStartTime = Date.now();
+    this.onTtrChange?.({ recovering: true, since: this._recoveryStartTime });
+  }
+
+  _completeRecovery() {
+    if (this._recoveryStartTime) {
+      const duration = (Date.now() - this._recoveryStartTime) / 1000;
+      this._recoveryStartTime = null;
+      this.onTtrChange?.({ recovering: false, duration });
+    }
+  }
+
+  _resetTtr() {
+    this._recoveryStartTime = null;
+    this.onTtrChange?.(null);
   }
 
   /**
@@ -148,22 +199,9 @@ class TaskAPI {
       stopped: false
     };
 
-    // Use adaptive delay logic
     let currentDelay = this.batchDelay;
-    let maxRetries = this.maxRetries;
-
-    if (taskIds.length > 1000) {
-      currentDelay = 1200;
-      maxRetries = 10;
-    } else if (taskIds.length > 500) {
-      currentDelay = 900;
-      maxRetries = 9;
-    } else if (taskIds.length > 100) {
-      currentDelay = 400;
-      maxRetries = 8;
-    } else {
-      maxRetries = 6;
-    }
+    const maxRetries = this.maxRetries;
+    this._setDelay(currentDelay);
 
     console.log(`[API] Starting bulk move of ${taskIds.length} tasks with ${currentDelay}ms delay and ${maxRetries} max retries`);
     console.log(`[API] Stop on failure: ${stopOnFailure}`);
@@ -174,65 +212,74 @@ class TaskAPI {
     for (let i = 0; i < taskIds.length; i++) {
       const taskId = taskIds[i];
       let retries = 0;
+      let rateLimitHits = 0;
       let success = false;
       let lastError = null;
 
-      while (retries < maxRetries && !success) {
+      while (!success) {
         try {
           const result = await this.moveTask(sourceListId, taskId, null, null, destinationListId);
+          this._trackRequest();
+          this._completeRecovery();
           results.successful.push({ taskId, result });
           success = true;
           consecutiveErrors = 0;
 
           // Gradually speed up if no errors
-          if (taskIds.length > 100 && currentDelay > this.batchDelay && consecutiveErrors === 0) {
-            currentDelay = Math.max(this.batchDelay * 2, currentDelay - 50);
+          if (currentDelay > this.batchDelay && consecutiveErrors === 0) {
+            currentDelay = Math.max(this.batchDelay, Math.round(currentDelay * 0.8));
+            this._setDelay(currentDelay);
           }
 
         } catch (error) {
+          this._trackRequest();
           lastError = error;
-          retries++;
           consecutiveErrors++;
 
           const errorMsg = error.message || error.result?.error?.message || error.toString() || '';
-          console.warn(`[API] Error on task ${i + 1}/${taskIds.length} (attempt ${retries}/${maxRetries}):`, errorMsg || 'Unknown error');
 
           // Check if it's a rate limit error
-          if (errorMsg.includes('Rate limit') ||
+          const isRateLimit = errorMsg.includes('Rate limit') ||
               errorMsg.includes('429') ||
               errorMsg.includes('403') ||
               errorMsg.includes('quota') ||
               error.status === 429 ||
-              error.status === 403) {
+              error.status === 403;
 
-            console.warn(`[API] Rate limit/quota hit (status: ${error.status}), slowing down significantly...`);
+          if (isRateLimit) {
+            rateLimitHits++;
+            console.warn(`[API] Rate limit on task ${i + 1}/${taskIds.length} (rate limit hit #${rateLimitHits}):`, errorMsg || 'Unknown error');
+            this._startRecovery();
 
-            currentDelay = Math.min(currentDelay * 3, 10000);
+            currentDelay = Math.min(Math.ceil(currentDelay * 1.5), 3000);
+            this._setDelay(currentDelay);
 
-            const backoffDelay = currentDelay * (retries + 1) * 3;
+            const backoffDelay = Math.min(2000 * Math.pow(2, rateLimitHits - 1), 30000);
             console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
             await this.delay(backoffDelay);
 
           } else {
+            retries++;
+            console.warn(`[API] Error on task ${i + 1}/${taskIds.length} (attempt ${retries}/${maxRetries}):`, errorMsg || 'Unknown error');
             await this.delay(this.batchDelay * Math.pow(2, retries));
+
+            if (retries >= maxRetries) {
+              const failureMsg = errorMsg || 'Unknown error after maximum retries';
+              results.failed.push({ taskId, error: failureMsg });
+              console.error(`[API] Failed to move task after ${retries} attempts:`, taskId);
+
+              if (stopOnFailure) {
+                console.error('[API] Stopping bulk move due to failure');
+                results.stopped = true;
+              }
+              break;
+            }
           }
 
           if (consecutiveErrors >= maxConsecutiveErrors) {
-            console.warn(`[API] ${consecutiveErrors} consecutive errors, pausing for 10 seconds...`);
-            await this.delay(10000);
+            console.warn(`[API] ${consecutiveErrors} consecutive errors, pausing for 5 seconds...`);
+            await this.delay(5000);
             consecutiveErrors = 0;
-          }
-
-          if (retries >= maxRetries) {
-            const failureMsg = errorMsg || 'Unknown error after maximum retries';
-            results.failed.push({ taskId, error: failureMsg });
-            console.error(`[API] Failed to move task after ${retries} attempts:`, taskId);
-
-            if (stopOnFailure) {
-              console.error('[API] Stopping bulk move due to failure');
-              results.stopped = true;
-              break;
-            }
           }
         }
       }
@@ -251,6 +298,9 @@ class TaskAPI {
       }
     }
 
+    this._setDelay(0);
+    this._resetRps();
+    this._resetTtr();
     console.log(`[API] Bulk move ${results.stopped ? 'STOPPED' : 'complete'}: ${results.successful.length} successful, ${results.failed.length} failed`);
 
     return results;
@@ -268,22 +318,9 @@ class TaskAPI {
       failed: []
     };
 
-    // Very conservative delay for large batches to avoid rate limits
     let currentDelay = this.batchDelay;
-    let maxRetries = this.maxRetries;
-    
-    if (tasks.length > 1000) {
-      currentDelay = 1200; // Slower - 1.2 seconds
-      maxRetries = 10; // More retries
-    } else if (tasks.length > 500) {
-      currentDelay = 900; // 900ms
-      maxRetries = 9;
-    } else if (tasks.length > 100) {
-      currentDelay = 400; // 400ms
-      maxRetries = 8;
-    } else {
-      maxRetries = 6;
-    }
+    const maxRetries = this.maxRetries;
+    this._setDelay(currentDelay);
 
     console.log(`[API] Starting bulk insert of ${tasks.length} tasks with ${currentDelay}ms delay and ${maxRetries} max retries`);
 
@@ -293,60 +330,68 @@ class TaskAPI {
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
       let retries = 0;
+      let rateLimitHits = 0;
       let success = false;
       let lastError = null;
 
-      while (retries < maxRetries && !success) {
+      while (!success) {
         try {
           const result = await this.insertTask(taskListId, task);
+          this._trackRequest();
+          this._completeRecovery();
           results.successful.push({ task: result, original: task });
           success = true;
           consecutiveErrors = 0; // Reset on success
-          
-          // Gradually speed up if no errors (but stay conservative)
-          if (tasks.length > 100 && currentDelay > this.batchDelay && consecutiveErrors === 0) {
-            currentDelay = Math.max(this.batchDelay * 2, currentDelay - 50);
+
+          // Gradually speed up if no errors
+          if (currentDelay > this.batchDelay && consecutiveErrors === 0) {
+            currentDelay = Math.max(this.batchDelay, Math.round(currentDelay * 0.8));
+            this._setDelay(currentDelay);
           }
-          
+
         } catch (error) {
+          this._trackRequest();
           lastError = error;
-          retries++;
           consecutiveErrors++;
-          
-          console.warn(`[API] Error on task ${i + 1}/${tasks.length} (attempt ${retries}/${maxRetries}):`, error.message);
-          
-          // Check if it's a rate limit error
+
           const errorMsg = error.message || error.toString() || '';
-          if (errorMsg.includes('Rate limit') || 
-              errorMsg.includes('429') || 
+
+          // Check if it's a rate limit error
+          const isRateLimit = errorMsg.includes('Rate limit') ||
+              errorMsg.includes('429') ||
               errorMsg.includes('403') ||
-              errorMsg.includes('quota')) {
-            
-console.warn(`[API] Rate limit/quota hit (status: ${error.status}), slowing down significantly...`);
-            
-            // Much more aggressive slowdown
-            currentDelay = Math.min(currentDelay * 3, 10000); // Up to 10 seconds between requests
-            
-            // Longer backoff before retry
-            const backoffDelay = currentDelay * (retries + 1) * 3; // 3x multiplier instead of 2x
+              errorMsg.includes('quota') ||
+              error.status === 429 ||
+              error.status === 403;
+
+          if (isRateLimit) {
+            rateLimitHits++;
+            console.warn(`[API] Rate limit on task ${i + 1}/${tasks.length} (rate limit hit #${rateLimitHits}):`, errorMsg || 'Unknown error');
+            this._startRecovery();
+
+            currentDelay = Math.min(Math.ceil(currentDelay * 1.5), 3000);
+            this._setDelay(currentDelay);
+
+            const backoffDelay = Math.min(2000 * Math.pow(2, rateLimitHits - 1), 30000);
             console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
             await this.delay(backoffDelay);
-            
+
           } else {
-            // Other error, use exponential backoff
+            retries++;
+            console.warn(`[API] Error on task ${i + 1}/${tasks.length} (attempt ${retries}/${maxRetries}):`, errorMsg || 'Unknown error');
             await this.delay(this.batchDelay * Math.pow(2, retries));
+
+            if (retries >= maxRetries) {
+              results.failed.push({ task, error: lastError.message });
+              console.error(`[API] Failed to insert task after ${retries} attempts:`, task.title);
+              break;
+            }
           }
-          
-          // If too many consecutive errors, pause significantly
+
           if (consecutiveErrors >= maxConsecutiveErrors) {
-            console.warn(`[API] ${consecutiveErrors} consecutive errors, pausing for 10 seconds...`);
-            await this.delay(10000);
+            console.warn(`[API] ${consecutiveErrors} consecutive errors, pausing for 5 seconds...`);
+            await this.delay(5000);
             consecutiveErrors = 0;
-          }
-          
-          if (retries >= maxRetries) {
-            results.failed.push({ task, error: lastError.message });
-            console.error(`[API] Failed to insert task after ${retries} attempts:`, task.title);
           }
         }
       }
@@ -362,8 +407,11 @@ console.warn(`[API] Rate limit/quota hit (status: ${error.status}), slowing down
       }
     }
 
+    this._setDelay(0);
+    this._resetRps();
+    this._resetTtr();
     console.log(`[API] Bulk insert complete: ${results.successful.length} successful, ${results.failed.length} failed`);
-    
+
     return results;
   }
 
@@ -395,22 +443,9 @@ console.warn(`[API] Rate limit/quota hit (status: ${error.status}), slowing down
     
     console.log(`[API] Created task map with ${taskMap.size} tasks`);
 
-    // Use same adaptive delay logic as bulk insert
     let currentDelay = this.batchDelay;
-    let maxRetries = this.maxRetries;
-    
-    if (updates.length > 1000) {
-      currentDelay = 1200; // Slower - 1.2 seconds
-      maxRetries = 10; // More retries
-    } else if (updates.length > 500) {
-      currentDelay = 900; // 900ms
-      maxRetries = 9;
-    } else if (updates.length > 100) {
-      currentDelay = 400; // 400ms
-      maxRetries = 8;
-    } else {
-      maxRetries = 6;
-    }
+    const maxRetries = this.maxRetries;
+    this._setDelay(currentDelay);
 
     console.log(`[API] Starting bulk update of ${updates.length} tasks with ${currentDelay}ms delay and ${maxRetries} max retries`);
     console.log(`[API] Stop on failure: ${stopOnFailure}`);
@@ -445,10 +480,11 @@ console.warn(`[API] Rate limit/quota hit (status: ${error.status}), slowing down
       };
 
       let retries = 0;
+      let rateLimitHits = 0;
       let success = false;
       let lastError = null;
 
-      while (retries < maxRetries && !success) {
+      while (!success) {
         try {
           // Update with merged task object
           const response = await window.gapi.client.tasks.tasks.update({
@@ -456,65 +492,68 @@ console.warn(`[API] Rate limit/quota hit (status: ${error.status}), slowing down
             task: taskId,
             resource: mergedTask
           });
-          
+          this._trackRequest();
+          this._completeRecovery();
+
           results.successful.push({ task: response.result });
           success = true;
           consecutiveErrors = 0;
-          
+
           // Gradually speed up if no errors
-          if (updates.length > 100 && currentDelay > this.batchDelay && consecutiveErrors === 0) {
-            currentDelay = Math.max(this.batchDelay * 2, currentDelay - 50);
+          if (currentDelay > this.batchDelay && consecutiveErrors === 0) {
+            currentDelay = Math.max(this.batchDelay, Math.round(currentDelay * 0.8));
+            this._setDelay(currentDelay);
           }
-          
+
         } catch (error) {
+          this._trackRequest();
           lastError = error;
-          retries++;
           consecutiveErrors++;
-          
-          // Safely get error message
+
           const errorMsg = error.message || error.result?.error?.message || error.toString() || '';
-          console.warn(`[API] Error on task ${i + 1}/${updates.length} (attempt ${retries}/${maxRetries}):`, errorMsg || 'Unknown error');
-          
+
           // Check if it's a rate limit error
-          if (errorMsg.includes('Rate limit') || 
-              errorMsg.includes('429') || 
+          const isRateLimit = errorMsg.includes('Rate limit') ||
+              errorMsg.includes('429') ||
               errorMsg.includes('403') ||
               errorMsg.includes('quota') ||
               error.status === 429 ||
-              error.status === 403) {
-            
-            console.warn(`[API] Rate limit/quota hit (status: ${error.status}), slowing down significantly...`);
-            
-            // Much more aggressive slowdown
-            currentDelay = Math.min(currentDelay * 3, 10000); // Up to 10 seconds between requests
-            
-            // Longer backoff before retry
-            const backoffDelay = currentDelay * (retries + 1) * 3; // 3x multiplier instead of 2x
+              error.status === 403;
 
+          if (isRateLimit) {
+            rateLimitHits++;
+            console.warn(`[API] Rate limit on task ${i + 1}/${updates.length} (rate limit hit #${rateLimitHits}):`, errorMsg || 'Unknown error');
+            this._startRecovery();
+
+            currentDelay = Math.min(Math.ceil(currentDelay * 1.5), 3000);
+            this._setDelay(currentDelay);
+
+            const backoffDelay = Math.min(2000 * Math.pow(2, rateLimitHits - 1), 30000);
             console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
             await this.delay(backoffDelay);
-            
+
           } else {
+            retries++;
+            console.warn(`[API] Error on task ${i + 1}/${updates.length} (attempt ${retries}/${maxRetries}):`, errorMsg || 'Unknown error');
             await this.delay(this.batchDelay * Math.pow(2, retries));
-          }
-          
-          if (consecutiveErrors >= maxConsecutiveErrors) {
-            console.warn(`[API] ${consecutiveErrors} consecutive errors, pausing for 10 seconds...`);
-            await this.delay(10000);
-            consecutiveErrors = 0;
-          }
-          
-          if (retries >= maxRetries) {
-            const failureMsg = errorMsg || 'Unknown error after maximum retries';
-            results.failed.push({ taskId, error: failureMsg });
-            console.error(`[API] Failed to update task after ${retries} attempts:`, taskId);
-            
-            // Stop if configured to do so
-            if (stopOnFailure) {
-              console.error('[API] Stopping bulk update due to failure');
-              results.stopped = true;
+
+            if (retries >= maxRetries) {
+              const failureMsg = errorMsg || 'Unknown error after maximum retries';
+              results.failed.push({ taskId, error: failureMsg });
+              console.error(`[API] Failed to update task after ${retries} attempts:`, taskId);
+
+              if (stopOnFailure) {
+                console.error('[API] Stopping bulk update due to failure');
+                results.stopped = true;
+              }
               break;
             }
+          }
+
+          if (consecutiveErrors >= maxConsecutiveErrors) {
+            console.warn(`[API] ${consecutiveErrors} consecutive errors, pausing for 5 seconds...`);
+            await this.delay(5000);
+            consecutiveErrors = 0;
           }
         }
       }
@@ -533,8 +572,11 @@ console.warn(`[API] Rate limit/quota hit (status: ${error.status}), slowing down
       }
     }
 
+    this._setDelay(0);
+    this._resetRps();
+    this._resetTtr();
     console.log(`[API] Bulk update ${results.stopped ? 'STOPPED' : 'complete'}: ${results.successful.length} successful, ${results.failed.length} failed`);
-    
+
     return results;
   }
 
@@ -564,7 +606,8 @@ console.warn(`[API] Rate limit/quota hit (status: ${error.status}), slowing down
         }
 
         const response = await window.gapi.client.tasks.tasks.list(params);
-        
+        this._trackRequest();
+
         const tasks = response.result.items || [];
         allTasks = allTasks.concat(tasks);
         
