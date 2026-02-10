@@ -45,6 +45,7 @@ function TokenTimer() {
 
       // Force component to re-read the new expiration time
       setRemainingTime(googleAuth.getRemainingTime());
+      hasRefreshed.current = false; // Reset so auto-refresh can trigger again next cycle
 
       // // COMMENTED OUT: Show success notification
       // alert('Session refreshed! You have another hour.');
