@@ -207,12 +207,13 @@ class TaskAPI {
     console.log(`[API] Stop on failure: ${stopOnFailure}`);
 
     let consecutiveErrors = 0;
+    let rateLimitHits = 0;
+    let sustainableDelay = this.batchDelay;
     const maxConsecutiveErrors = 5;
 
     for (let i = 0; i < taskIds.length; i++) {
       const taskId = taskIds[i];
       let retries = 0;
-      let rateLimitHits = 0;
       let success = false;
       let lastError = null;
 
@@ -224,10 +225,11 @@ class TaskAPI {
           results.successful.push({ taskId, result });
           success = true;
           consecutiveErrors = 0;
+          if (rateLimitHits > 0) rateLimitHits--;
 
           // Gradually speed up if no errors
-          if (currentDelay > this.batchDelay && consecutiveErrors === 0) {
-            currentDelay = Math.max(this.batchDelay, Math.round(currentDelay * 0.8));
+          if (rateLimitHits === 0 && currentDelay > sustainableDelay) {
+            currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
             this._setDelay(currentDelay);
           }
 
@@ -248,13 +250,16 @@ class TaskAPI {
 
           if (isRateLimit) {
             rateLimitHits++;
-            console.warn(`[API] Rate limit on task ${i + 1}/${taskIds.length} (rate limit hit #${rateLimitHits}):`, errorMsg || 'Unknown error');
+            if (rateLimitHits === 1) {
+              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(currentDelay * 1.2)), 3000);
+            }
+            console.warn(`[API] Rate limit on task ${i + 1}/${taskIds.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
             this._startRecovery();
 
-            currentDelay = Math.min(Math.ceil(currentDelay * 1.5), 3000);
+            currentDelay = Math.min(Math.ceil(currentDelay * 2), 3000);
             this._setDelay(currentDelay);
 
-            const backoffDelay = Math.min(2000 * Math.pow(2, rateLimitHits - 1), 30000);
+            const backoffDelay = Math.min(1000 + 1000 * rateLimitHits, 10000);
             console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
             await this.delay(backoffDelay);
 
@@ -325,12 +330,13 @@ class TaskAPI {
     console.log(`[API] Starting bulk insert of ${tasks.length} tasks with ${currentDelay}ms delay and ${maxRetries} max retries`);
 
     let consecutiveErrors = 0;
+    let rateLimitHits = 0;
+    let sustainableDelay = this.batchDelay;
     const maxConsecutiveErrors = 5;
 
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
       let retries = 0;
-      let rateLimitHits = 0;
       let success = false;
       let lastError = null;
 
@@ -341,11 +347,12 @@ class TaskAPI {
           this._completeRecovery();
           results.successful.push({ task: result, original: task });
           success = true;
-          consecutiveErrors = 0; // Reset on success
+          consecutiveErrors = 0;
+          if (rateLimitHits > 0) rateLimitHits--;
 
           // Gradually speed up if no errors
-          if (currentDelay > this.batchDelay && consecutiveErrors === 0) {
-            currentDelay = Math.max(this.batchDelay, Math.round(currentDelay * 0.8));
+          if (rateLimitHits === 0 && currentDelay > sustainableDelay) {
+            currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
             this._setDelay(currentDelay);
           }
 
@@ -366,13 +373,16 @@ class TaskAPI {
 
           if (isRateLimit) {
             rateLimitHits++;
-            console.warn(`[API] Rate limit on task ${i + 1}/${tasks.length} (rate limit hit #${rateLimitHits}):`, errorMsg || 'Unknown error');
+            if (rateLimitHits === 1) {
+              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(currentDelay * 1.2)), 3000);
+            }
+            console.warn(`[API] Rate limit on task ${i + 1}/${tasks.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
             this._startRecovery();
 
-            currentDelay = Math.min(Math.ceil(currentDelay * 1.5), 3000);
+            currentDelay = Math.min(Math.ceil(currentDelay * 2), 3000);
             this._setDelay(currentDelay);
 
-            const backoffDelay = Math.min(2000 * Math.pow(2, rateLimitHits - 1), 30000);
+            const backoffDelay = Math.min(1000 + 1000 * rateLimitHits, 10000);
             console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
             await this.delay(backoffDelay);
 
@@ -451,6 +461,8 @@ class TaskAPI {
     console.log(`[API] Stop on failure: ${stopOnFailure}`);
 
     let consecutiveErrors = 0;
+    let rateLimitHits = 0;
+    let sustainableDelay = this.batchDelay;
     const maxConsecutiveErrors = 5;
 
     for (let i = 0; i < updates.length; i++) {
@@ -480,7 +492,6 @@ class TaskAPI {
       };
 
       let retries = 0;
-      let rateLimitHits = 0;
       let success = false;
       let lastError = null;
 
@@ -498,10 +509,11 @@ class TaskAPI {
           results.successful.push({ task: response.result });
           success = true;
           consecutiveErrors = 0;
+          if (rateLimitHits > 0) rateLimitHits--;
 
           // Gradually speed up if no errors
-          if (currentDelay > this.batchDelay && consecutiveErrors === 0) {
-            currentDelay = Math.max(this.batchDelay, Math.round(currentDelay * 0.8));
+          if (rateLimitHits === 0 && currentDelay > sustainableDelay) {
+            currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
             this._setDelay(currentDelay);
           }
 
@@ -522,13 +534,16 @@ class TaskAPI {
 
           if (isRateLimit) {
             rateLimitHits++;
-            console.warn(`[API] Rate limit on task ${i + 1}/${updates.length} (rate limit hit #${rateLimitHits}):`, errorMsg || 'Unknown error');
+            if (rateLimitHits === 1) {
+              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(currentDelay * 1.2)), 3000);
+            }
+            console.warn(`[API] Rate limit on task ${i + 1}/${updates.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
             this._startRecovery();
 
-            currentDelay = Math.min(Math.ceil(currentDelay * 1.5), 3000);
+            currentDelay = Math.min(Math.ceil(currentDelay * 2), 3000);
             this._setDelay(currentDelay);
 
-            const backoffDelay = Math.min(2000 * Math.pow(2, rateLimitHits - 1), 30000);
+            const backoffDelay = Math.min(1000 + 1000 * rateLimitHits, 10000);
             console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
             await this.delay(backoffDelay);
 

@@ -69,6 +69,16 @@
   }
 }
 
+@keyframes delay-flash-up {
+  0% { background: rgba(229, 62, 62, 0.4); }
+  100% { background: rgba(56, 161, 105, 0.1); }
+}
+
+@keyframes delay-flash-down {
+  0% { background: rgba(56, 161, 105, 0.4); }
+  100% { background: rgba(56, 161, 105, 0.1); }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .token-timer {
