@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { googleAuth } from './auth/GoogleAuth';
 import TabNavigation from './components/TabNavigation';
 import TokenTimer from './components/TokenTimer';
+import RpsDisplay from './components/RpsDisplay';
+import TtrDisplay from './components/TtrDisplay';
+import DelayDisplay from './components/DelayDisplay';
 import './App.css';
 
 function App() {
@@ -139,6 +142,9 @@ function App() {
         <div className="header-content">
           <h1 className="app-title">Task Manager V2</h1>
           <div className="header-actions">
+            <RpsDisplay />
+            <TtrDisplay />
+            <DelayDisplay />
             <TokenTimer />
             <button onClick={handleSignOut} className="sign-out-button">
               Sign Out
