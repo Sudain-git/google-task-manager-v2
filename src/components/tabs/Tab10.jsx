@@ -32,6 +32,24 @@ function Tab10() {
   const [filteredPageSize, setFilteredPageSize] = useState(10);
   const [filteredPage, setFilteredPage] = useState(1);
 
+  // Bulk operation testing
+  const [destinationList, setDestinationList] = useState('');
+  const [operationType, setOperationType] = useState('move');
+  const [algorithmType, setAlgorithmType] = useState('experimental');
+  const [selectedTasks, setSelectedTasks] = useState([]);
+  const [selectedPageSize, setSelectedPageSize] = useState(10);
+  const [selectedPage, setSelectedPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [opStats, setOpStats] = useState(null);
+  const [results, setResults] = useState(null);
+
+  // Date operation controls
+  const [startDate, setStartDate] = useState('');
+  const [frequency, setFrequency] = useState('interval');
+  const [intervalAmount, setIntervalAmount] = useState(1);
+  const [intervalUnit, setIntervalUnit] = useState('days');
+
   // Load task lists on mount
   useEffect(() => {
     loadTaskLists();
@@ -100,6 +118,14 @@ function Tab10() {
     setFilteredPage(1);
   }, [sortedTasks]);
 
+  // Reset selected page when selection changes
+  useEffect(() => {
+    const maxPage = Math.ceil(selectedTasks.length / selectedPageSize) || 1;
+    if (selectedPage > maxPage) {
+      setSelectedPage(maxPage);
+    }
+  }, [selectedTasks.length, selectedPageSize, selectedPage]);
+
   async function loadTaskLists() {
     try {
       setLoadingLists(true);
@@ -124,6 +150,8 @@ function Tab10() {
       setAllTasks([]);
       setFilteredTasks([]);
       setSortedTasks([]);
+      setSelectedTasks([]);
+      setResults(null);
 
       console.log('[Dev] Fetching all tasks from list...');
       const tasks = await taskAPI.getAllTasksFromList(listId, false, false);
@@ -286,6 +314,198 @@ function Tab10() {
     }
   }
 
+  function calculateDueDate(startDateStr, taskIndex, freq, amount, unit) {
+    const [year, month, day] = startDateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+
+    if (freq === 'same') {
+      return date;
+    } else if (freq === 'interval') {
+      const totalAmount = amount * taskIndex;
+
+      if (unit === 'days') {
+        date.setDate(date.getDate() + totalAmount);
+      } else if (unit === 'weekdays') {
+        let dayOfWeek = date.getDay();
+        while (dayOfWeek === 0 || dayOfWeek === 6) {
+          date.setDate(date.getDate() + 1);
+          dayOfWeek = date.getDay();
+        }
+        let weekdaysAdded = 0;
+        while (weekdaysAdded < totalAmount) {
+          date.setDate(date.getDate() + 1);
+          dayOfWeek = date.getDay();
+          if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            weekdaysAdded++;
+          }
+        }
+      } else if (unit === 'weeks') {
+        date.setDate(date.getDate() + (totalAmount * 7));
+      } else if (unit === 'months') {
+        date.setMonth(date.getMonth() + totalAmount);
+      }
+
+      return date;
+    }
+
+    return date;
+  }
+
+  function getOperationLabel() {
+    switch (operationType) {
+      case 'move': return 'Move';
+      case 'dates': return 'Set Dates';
+      case 'complete': return 'Complete';
+      default: return 'Operation';
+    }
+  }
+
+  function isRunDisabled() {
+    if (isLoading) return true;
+    if (selectedTasks.length === 0) return true;
+    if (operationType === 'move' && !destinationList) return true;
+    if (operationType === 'dates' && !startDate && frequency !== 'clear') return true;
+    return false;
+  }
+
+  async function handleRunOperation() {
+    setIsLoading(true);
+    setProgress({ current: 0, total: selectedTasks.length });
+    setOpStats(null);
+    setResults(null);
+
+    const taskIds = selectedTasks;
+
+    try {
+      let result;
+
+      if (operationType === 'move') {
+        if (algorithmType === 'experimental') {
+          result = await taskAPI.bulkOperation(
+            taskIds,
+            (id) => taskAPI.moveTask(selectedList, id, null, null, destinationList),
+            {
+              onProgress: (current, total, stats) => {
+                setProgress({ current, total });
+                setOpStats(stats);
+              },
+              stopOnFailure: true
+            }
+          );
+        } else {
+          result = await taskAPI.bulkMoveTasks(
+            selectedList,
+            destinationList,
+            taskIds,
+            (current, total) => setProgress({ current, total }),
+            true
+          );
+        }
+      } else if (operationType === 'dates') {
+        if (algorithmType === 'experimental') {
+          const items = taskIds.map((taskId, index) => {
+            let updates;
+            if (frequency === 'clear') {
+              updates = { due: null };
+            } else {
+              const dueDate = calculateDueDate(startDate, index, frequency, intervalAmount, intervalUnit);
+              updates = { due: dueDate.toISOString() };
+            }
+            return { taskId, updates };
+          });
+
+          result = await taskAPI.bulkOperation(
+            items,
+            (item) => window.gapi.client.tasks.tasks.update({
+              tasklist: selectedList,
+              task: item.taskId,
+              resource: item.updates
+            }).then(r => r.result),
+            {
+              onProgress: (current, total, stats) => {
+                setProgress({ current, total });
+                setOpStats(stats);
+              },
+              stopOnFailure: true
+            }
+          );
+        } else {
+          const updates = taskIds.map((taskId, index) => {
+            let taskUpdates;
+            if (frequency === 'clear') {
+              taskUpdates = { due: null };
+            } else {
+              const dueDate = calculateDueDate(startDate, index, frequency, intervalAmount, intervalUnit);
+              taskUpdates = { due: dueDate.toISOString() };
+            }
+            return { taskId, updates: taskUpdates };
+          });
+
+          result = await taskAPI.bulkUpdateTasks(
+            selectedList,
+            updates,
+            (current, total) => setProgress({ current, total }),
+            true
+          );
+        }
+      } else if (operationType === 'complete') {
+        if (algorithmType === 'experimental') {
+          const items = taskIds.map(taskId => ({
+            taskId,
+            updates: { status: 'completed' }
+          }));
+
+          result = await taskAPI.bulkOperation(
+            items,
+            (item) => window.gapi.client.tasks.tasks.update({
+              tasklist: selectedList,
+              task: item.taskId,
+              resource: item.updates
+            }).then(r => r.result),
+            {
+              onProgress: (current, total, stats) => {
+                setProgress({ current, total });
+                setOpStats(stats);
+              },
+              stopOnFailure: true
+            }
+          );
+        } else {
+          const updates = taskIds.map(taskId => ({
+            taskId,
+            updates: { status: 'completed' }
+          }));
+
+          result = await taskAPI.bulkUpdateTasks(
+            selectedList,
+            updates,
+            (current, total) => setProgress({ current, total }),
+            true
+          );
+        }
+      }
+
+      setResults(result);
+      console.log('[Dev] Bulk operation complete:', result);
+
+    } catch (error) {
+      console.error('[Dev] Bulk operation failed:', error);
+      alert('Operation failed: ' + error.message);
+    } finally {
+      setIsLoading(false);
+      setOpStats(null);
+    }
+  }
+
+  function getZoneColor(zone) {
+    switch (zone) {
+      case 'red': return 'var(--accent-error, #e53e3e)';
+      case 'yellow': return 'var(--accent-warning, #ed8936)';
+      case 'green': return 'var(--accent-success, #38a169)';
+      default: return 'var(--text-tertiary)';
+    }
+  }
+
   if (loadingLists) {
     return (
       <div className="tab-content">
@@ -305,26 +525,44 @@ function Tab10() {
       {/* Task List Selection */}
       <div className="form-section">
         <h3>Select Task List</h3>
-        <div className="form-group">
-          <label htmlFor="task-list">Task List</label>
-          <select
-            id="task-list"
-            value={selectedList}
-            onChange={(e) => {
-              setSelectedList(e.target.value);
-              if (e.target.value) {
-                handleFetchTasks(e.target.value);
-              }
-            }}
-            disabled={isFetching}
-          >
-            <option value="">Select a list...</option>
-            {taskLists.map(list => (
-              <option key={list.id} value={list.id}>
-                {list.title}
-              </option>
-            ))}
-          </select>
+        <div style={{ display: 'flex', gap: 'var(--spacing-lg)' }}>
+          <div className="form-group" style={{ flex: 1 }}>
+            <label htmlFor="task-list">Source List</label>
+            <select
+              id="task-list"
+              value={selectedList}
+              onChange={(e) => {
+                setSelectedList(e.target.value);
+                if (e.target.value) {
+                  handleFetchTasks(e.target.value);
+                }
+              }}
+              disabled={isFetching}
+            >
+              <option value="">Select a list...</option>
+              {taskLists.map(list => (
+                <option key={list.id} value={list.id}>
+                  {list.title}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group" style={{ flex: 1 }}>
+            <label htmlFor="dest-list">Destination List</label>
+            <select
+              id="dest-list"
+              value={destinationList}
+              onChange={(e) => setDestinationList(e.target.value)}
+              disabled={isFetching || !selectedList}
+            >
+              <option value="">Select destination...</option>
+              {taskLists.filter(l => l.id !== selectedList).map(list => (
+                <option key={list.id} value={list.id}>
+                  {list.title}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -498,149 +736,572 @@ function Tab10() {
         </div>
       )}
 
-      {/* Filtered & Sorted Results */}
+      {/* Two-Panel Task Selection */}
       {sortedTasks.length > 0 && (
         <div className="form-section">
+          <div className="bulk-dates-grid">
+            {/* Left: Filtered & Sorted Results */}
+            <div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 'var(--spacing-md)'
+              }}>
+                <h3 style={{ margin: 0 }}>
+                  Filtered & Sorted ({sortedTasks.length})
+                </h3>
+
+                <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+                  <select
+                    value={filteredPageSize}
+                    onChange={(e) => {
+                      setFilteredPageSize(Number(e.target.value));
+                      setFilteredPage(1);
+                    }}
+                    disabled={isLoading}
+                    style={{ padding: 'var(--spacing-xs)', fontSize: '0.75rem' }}
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <button
+                    onClick={() => setSelectedTasks(sortedTasks.map(t => t.id))}
+                    disabled={isLoading}
+                    style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                  >
+                    Select All
+                  </button>
+                  <button
+                    onClick={() => setSelectedTasks([])}
+                    disabled={isLoading || selectedTasks.length === 0}
+                    style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              <div style={{
+                padding: 'var(--spacing-md)',
+                background: 'var(--bg-tertiary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-md)',
+                maxHeight: '500px',
+                overflowY: 'auto'
+              }}>
+                {sortedTasks.slice((filteredPage - 1) * filteredPageSize, filteredPage * filteredPageSize).map((task, index) => {
+                  const isSelected = selectedTasks.includes(task.id);
+
+                  return (
+                    <div
+                      key={task.id}
+                      onClick={() => {
+                        if (isLoading) return;
+                        if (isSelected) {
+                          setSelectedTasks(prev => prev.filter(id => id !== task.id));
+                        } else {
+                          setSelectedTasks(prev => [...prev, task.id]);
+                        }
+                      }}
+                      style={{
+                        padding: 'var(--spacing-sm)',
+                        marginBottom: 'var(--spacing-xs)',
+                        background: isSelected ? 'rgba(49, 130, 206, 0.1)' : 'var(--bg-primary)',
+                        border: isSelected ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '0.875rem',
+                        cursor: isLoading ? 'default' : 'pointer',
+                        transition: 'all var(--transition-fast)',
+                        display: 'flex',
+                        gap: 'var(--spacing-md)',
+                        alignItems: 'flex-start'
+                      }}
+                    >
+                      <div style={{
+                        minWidth: '20px',
+                        height: '20px',
+                        border: '2px solid var(--accent-primary)',
+                        borderRadius: 'var(--radius-sm)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        background: isSelected ? 'var(--accent-primary)' : 'transparent',
+                        color: 'white',
+                        fontSize: '0.75rem',
+                        fontWeight: '700',
+                        marginTop: '2px'
+                      }}>
+                        {isSelected && '\u2713'}
+                      </div>
+
+                      <div style={{
+                        minWidth: '30px',
+                        fontWeight: '700',
+                        color: 'var(--accent-primary)',
+                        fontSize: '0.75rem'
+                      }}>
+                        {(filteredPage - 1) * filteredPageSize + index + 1}.
+                      </div>
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontWeight: '600',
+                          marginBottom: 'var(--spacing-xs)',
+                          overflow: 'hidden',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical'
+                        }}>
+                          {task.title}
+                        </div>
+
+                        {task.notes && (
+                          <div style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--text-tertiary)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontStyle: 'italic',
+                            marginBottom: 'var(--spacing-xs)'
+                          }}>
+                            {task.notes}
+                          </div>
+                        )}
+
+                        <div style={{
+                          fontSize: '0.75rem',
+                          color: 'var(--text-tertiary)',
+                          display: 'flex',
+                          gap: 'var(--spacing-md)',
+                          flexWrap: 'wrap'
+                        }}>
+                          {task.due && (
+                            <span>Due: {new Date(task.due).toLocaleDateString()}</span>
+                          )}
+                          {task.notes && parseDuration(task.notes) !== Infinity && (
+                            <span>{formatDurationPreview(parseDuration(task.notes))}</span>
+                          )}
+                          {task.parent && (
+                            <span style={{ color: 'var(--accent-warning, #ed8936)' }}>Subtask</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {sortedTasks.length > filteredPageSize && (() => {
+                  const totalPages = Math.ceil(sortedTasks.length / filteredPageSize);
+                  const startItem = (filteredPage - 1) * filteredPageSize + 1;
+                  const endItem = Math.min(filteredPage * filteredPageSize, sortedTasks.length);
+                  return (
+                    <div style={{
+                      padding: 'var(--spacing-md)',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: 'var(--spacing-md)',
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.875rem'
+                    }}>
+                      <button
+                        onClick={() => setFilteredPage(p => Math.max(1, p - 1))}
+                        disabled={filteredPage === 1}
+                        style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                      >
+                        Prev
+                      </button>
+                      <span>
+                        {startItem}-{endItem} of {sortedTasks.length} (Page {filteredPage}/{totalPages})
+                      </span>
+                      <button
+                        onClick={() => setFilteredPage(p => Math.min(totalPages, p + 1))}
+                        disabled={filteredPage === totalPages}
+                        style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Right: Selected Tasks */}
+            <div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 'var(--spacing-md)'
+              }}>
+                <h3 style={{ margin: 0 }}>
+                  Selected Tasks ({selectedTasks.length})
+                </h3>
+                {selectedTasks.length > 0 && (
+                  <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+                    <select
+                      value={selectedPageSize}
+                      onChange={(e) => {
+                        setSelectedPageSize(Number(e.target.value));
+                        setSelectedPage(1);
+                      }}
+                      disabled={isLoading}
+                      style={{ padding: 'var(--spacing-xs)', fontSize: '0.75rem' }}
+                    >
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                    <button
+                      onClick={() => setSelectedTasks([])}
+                      disabled={isLoading}
+                      style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {selectedTasks.length > 0 ? (
+                <div style={{
+                  padding: 'var(--spacing-md)',
+                  background: 'rgba(49, 130, 206, 0.05)',
+                  border: '2px solid var(--accent-primary)',
+                  borderRadius: 'var(--radius-md)',
+                  maxHeight: '500px',
+                  overflowY: 'auto'
+                }}>
+                  {sortedTasks
+                    .filter(task => selectedTasks.includes(task.id))
+                    .slice((selectedPage - 1) * selectedPageSize, selectedPage * selectedPageSize)
+                    .map((task, index) => (
+                      <div
+                        key={task.id}
+                        style={{
+                          padding: 'var(--spacing-sm)',
+                          marginBottom: 'var(--spacing-xs)',
+                          background: 'var(--bg-primary)',
+                          border: '1px solid var(--accent-primary)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.875rem',
+                          display: 'flex',
+                          gap: 'var(--spacing-md)',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <div style={{
+                          minWidth: '30px',
+                          fontWeight: '700',
+                          color: 'var(--accent-primary)',
+                          fontSize: '0.75rem'
+                        }}>
+                          {(selectedPage - 1) * selectedPageSize + index + 1}.
+                        </div>
+
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontWeight: '600',
+                            overflow: 'hidden',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical'
+                          }}>
+                            {task.title}
+                          </div>
+                          {task.notes && (
+                            <div style={{
+                              fontSize: '0.75rem',
+                              color: 'var(--text-tertiary)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontStyle: 'italic',
+                              marginTop: 'var(--spacing-xs)'
+                            }}>
+                              {task.notes}
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => setSelectedTasks(prev => prev.filter(id => id !== task.id))}
+                          disabled={isLoading}
+                          style={{
+                            padding: 'var(--spacing-xs)',
+                            fontSize: '0.75rem',
+                            background: 'transparent',
+                            border: '1px solid var(--accent-error)',
+                            color: 'var(--accent-error)',
+                            cursor: isLoading ? 'default' : 'pointer',
+                            borderRadius: 'var(--radius-sm)',
+                            flexShrink: 0
+                          }}
+                        >
+                          {'\u2715'}
+                        </button>
+                      </div>
+                    ))}
+
+                  {selectedTasks.length > selectedPageSize && (() => {
+                    const totalPages = Math.ceil(selectedTasks.length / selectedPageSize);
+                    const startItem = (selectedPage - 1) * selectedPageSize + 1;
+                    const endItem = Math.min(selectedPage * selectedPageSize, selectedTasks.length);
+                    return (
+                      <div style={{
+                        padding: 'var(--spacing-md)',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: 'var(--spacing-md)',
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.875rem'
+                      }}>
+                        <button
+                          onClick={() => setSelectedPage(p => Math.max(1, p - 1))}
+                          disabled={selectedPage === 1}
+                          style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                        >
+                          Prev
+                        </button>
+                        <span>
+                          {startItem}-{endItem} of {selectedTasks.length} (Page {selectedPage}/{totalPages})
+                        </span>
+                        <button
+                          onClick={() => setSelectedPage(p => Math.min(totalPages, p + 1))}
+                          disabled={selectedPage === totalPages}
+                          style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div style={{
+                  padding: 'var(--spacing-xl)',
+                  background: 'var(--bg-tertiary)',
+                  border: '1px dashed var(--border-color)',
+                  borderRadius: 'var(--radius-md)',
+                  textAlign: 'center',
+                  color: 'var(--text-tertiary)',
+                  fontSize: '0.875rem',
+                  minHeight: '200px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  No tasks selected. Click tasks on the left to select them.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Operation Controls */}
+      {sortedTasks.length > 0 && (
+        <div className="form-section">
+          <h3>Bulk Operation</h3>
           <div style={{
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 'var(--spacing-md)'
+            gap: 'var(--spacing-md)',
+            alignItems: 'flex-end',
+            flexWrap: 'wrap'
           }}>
-            <h3 style={{ margin: 0 }}>
-              Filtered & Sorted ({sortedTasks.length})
-            </h3>
-
-            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+            {/* Operation Type */}
+            <div className="form-group" style={{ margin: 0 }}>
+              <label htmlFor="dev-op-type">Operation</label>
               <select
-                value={filteredPageSize}
-                onChange={(e) => {
-                  setFilteredPageSize(Number(e.target.value));
-                  setFilteredPage(1);
-                }}
-                style={{ padding: 'var(--spacing-xs)', fontSize: '0.75rem' }}
+                id="dev-op-type"
+                value={operationType}
+                onChange={(e) => setOperationType(e.target.value)}
+                disabled={isLoading}
               >
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
+                <option value="move">Move Tasks</option>
+                <option value="dates">Set Due Dates</option>
+                <option value="complete">Complete Tasks</option>
               </select>
+            </div>
+
+            {/* Date controls (dates only) */}
+            {operationType === 'dates' && (
+              <>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label htmlFor="dev-start-date">Start Date</label>
+                  <input
+                    id="dev-start-date"
+                    type="date"
+                    value={frequency === 'clear' ? '' : startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    disabled={isLoading || frequency === 'clear'}
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label htmlFor="dev-frequency">Frequency</label>
+                  <select
+                    id="dev-frequency"
+                    value={frequency}
+                    onChange={(e) => setFrequency(e.target.value)}
+                    disabled={isLoading}
+                  >
+                    <option value="same">Same date for all</option>
+                    <option value="interval">Interval</option>
+                    <option value="clear">Clear due date</option>
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label htmlFor="dev-interval-amount">Every</label>
+                  <input
+                    id="dev-interval-amount"
+                    type="number"
+                    min="0"
+                    value={frequency === 'same' || frequency === 'clear' ? 0 : intervalAmount}
+                    onChange={(e) => setIntervalAmount(Math.max(1, parseInt(e.target.value) || 1))}
+                    disabled={isLoading || frequency === 'same' || frequency === 'clear'}
+                    style={{ width: '60px' }}
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label htmlFor="dev-interval-unit">Unit</label>
+                  <select
+                    id="dev-interval-unit"
+                    value={frequency === 'same' || frequency === 'clear' ? 'days' : intervalUnit}
+                    onChange={(e) => setIntervalUnit(e.target.value)}
+                    disabled={isLoading || frequency === 'same' || frequency === 'clear'}
+                  >
+                    <option value="days">Days</option>
+                    <option value="weekdays">Weekdays</option>
+                    <option value="weeks">Weeks</option>
+                    <option value="months">Months</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            {/* Algorithm Selector */}
+            <div className="form-group" style={{ margin: 0 }}>
+              <label htmlFor="dev-algorithm">Algorithm</label>
+              <select
+                id="dev-algorithm"
+                value={algorithmType}
+                onChange={(e) => setAlgorithmType(e.target.value)}
+                disabled={isLoading}
+              >
+                <option value="experimental">Experimental (adaptive zones)</option>
+                <option value="legacy">Legacy (per-operation)</option>
+              </select>
+            </div>
+
+            {/* Run Button */}
+            <button
+              className="primary"
+              onClick={handleRunOperation}
+              disabled={isRunDisabled()}
+              style={{ alignSelf: 'flex-end' }}
+            >
+              Run {getOperationLabel()} on {selectedTasks.length} task(s)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Progress Bar + Live Stats */}
+      {isLoading && (
+        <div className="form-section">
+          <div className="progress-container">
+            <div className="progress-header">
+              <span className="progress-label">{getOperationLabel()}...</span>
+              <span className="progress-count">
+                {progress.current} / {progress.total}
+              </span>
+            </div>
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
+              />
             </div>
           </div>
 
-          <div style={{
-            padding: 'var(--spacing-md)',
-            background: 'var(--bg-tertiary)',
-            border: '1px solid var(--border-color)',
-            borderRadius: 'var(--radius-md)',
-            maxHeight: '500px',
-            overflowY: 'auto'
-          }}>
-            {sortedTasks.slice((filteredPage - 1) * filteredPageSize, filteredPage * filteredPageSize).map((task, index) => (
-              <div
-                key={task.id}
-                style={{
-                  padding: 'var(--spacing-sm)',
-                  marginBottom: 'var(--spacing-xs)',
-                  background: 'var(--bg-primary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.875rem',
-                  display: 'flex',
-                  gap: 'var(--spacing-md)',
-                  alignItems: 'flex-start'
-                }}
-              >
-                <div style={{
-                  minWidth: '30px',
-                  fontWeight: '700',
-                  color: 'var(--accent-primary)',
-                  fontSize: '0.75rem'
-                }}>
-                  {(filteredPage - 1) * filteredPageSize + index + 1}.
-                </div>
+          {/* Live stats (experimental only) */}
+          {opStats && (
+            <div style={{
+              marginTop: 'var(--spacing-md)',
+              padding: 'var(--spacing-sm) var(--spacing-md)',
+              background: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.75rem',
+              display: 'flex',
+              gap: 'var(--spacing-lg)',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              fontFamily: 'monospace'
+            }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)' }}>
+                <span style={{
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  background: getZoneColor(opStats.zone),
+                  display: 'inline-block'
+                }} />
+                Zone: {opStats.zone}
+              </span>
+              <span>Delay: {opStats.currentDelay}ms</span>
+              <span>Floor: {opStats.currentFloor}ms</span>
+              <span>Avg: {opStats.currentAverage}ms</span>
+              <span>Peak: {opStats.currentPeak}ms</span>
+              <span>Sustainable: {opStats.sustainableDelay}ms</span>
+              <span>Rate limits: {opStats.rateLimitHits} outstanding, {opStats.recentRateLimitHits} in last 5m</span>
+            </div>
+          )}
+        </div>
+      )}
 
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontWeight: '600',
-                    marginBottom: 'var(--spacing-xs)',
-                    overflow: 'hidden',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical'
-                  }}>
-                    {task.title}
-                  </div>
-
-                  {task.notes && (
-                    <div style={{
-                      fontSize: '0.75rem',
-                      color: 'var(--text-tertiary)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      fontStyle: 'italic',
-                      marginBottom: 'var(--spacing-xs)'
-                    }}>
-                      {task.notes}
-                    </div>
-                  )}
-
-                  <div style={{
-                    fontSize: '0.75rem',
-                    color: 'var(--text-tertiary)',
-                    display: 'flex',
-                    gap: 'var(--spacing-md)',
-                    flexWrap: 'wrap'
-                  }}>
-                    {task.due && (
-                      <span>Due: {new Date(task.due).toLocaleDateString()}</span>
-                    )}
-                    {task.notes && parseDuration(task.notes) !== Infinity && (
-                      <span>{formatDurationPreview(parseDuration(task.notes))}</span>
-                    )}
-                    {task.parent && (
-                      <span style={{ color: 'var(--accent-warning, #ed8936)' }}>Subtask</span>
-                    )}
-                  </div>
-                </div>
+      {/* Results Display */}
+      {results && (
+        <div className="form-section">
+          <div className="results-container">
+            <div className="results-summary">
+              <div className="result-stat">
+                <span className="result-stat-value success">
+                  {results.successful.length}
+                </span>
+                <span className="result-stat-label">Successful</span>
               </div>
-            ))}
+              <div className="result-stat">
+                <span className="result-stat-value error">
+                  {results.failed.length}
+                </span>
+                <span className="result-stat-label">Failed</span>
+              </div>
+            </div>
 
-            {sortedTasks.length > filteredPageSize && (() => {
-              const totalPages = Math.ceil(sortedTasks.length / filteredPageSize);
-              const startItem = (filteredPage - 1) * filteredPageSize + 1;
-              const endItem = Math.min(filteredPage * filteredPageSize, sortedTasks.length);
-              return (
-                <div style={{
-                  padding: 'var(--spacing-md)',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  gap: 'var(--spacing-md)',
-                  color: 'var(--text-secondary)',
-                  fontSize: '0.875rem'
-                }}>
-                  <button
-                    onClick={() => setFilteredPage(p => Math.max(1, p - 1))}
-                    disabled={filteredPage === 1}
-                    style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
-                  >
-                    Prev
-                  </button>
-                  <span>
-                    {startItem}-{endItem} of {sortedTasks.length} (Page {filteredPage}/{totalPages})
-                  </span>
-                  <button
-                    onClick={() => setFilteredPage(p => Math.min(totalPages, p + 1))}
-                    disabled={filteredPage === totalPages}
-                    style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
-                  >
-                    Next
-                  </button>
+            {results.failed.length > 0 && (
+              <details className="results-details">
+                <summary>View Failed Operations</summary>
+                <div className="results-list">
+                  {results.failed.map((item, index) => (
+                    <div key={index} className="result-item error">
+                      {item.taskId}: {item.error}
+                    </div>
+                  ))}
                 </div>
-              );
-            })()}
+              </details>
+            )}
           </div>
         </div>
       )}

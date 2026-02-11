@@ -5,6 +5,7 @@ import './TokenTimer.css';
 function DelayDisplay() {
   const [delay, setDelay] = useState(0);
   const [flash, setFlash] = useState(null); // 'up' | 'down' | null
+  const [thresholds, setThresholds] = useState(null);
   const prevDelay = useRef(0);
 
   useEffect(() => {
@@ -17,7 +18,13 @@ function DelayDisplay() {
         setFlash(newDelay > prev ? 'up' : 'down');
       }
     };
-    return () => { taskAPI.onDelayChange = null; };
+
+    taskAPI.onThresholdsChange = (data) => setThresholds(data);
+
+    return () => {
+      taskAPI.onDelayChange = null;
+      taskAPI.onThresholdsChange = null;
+    };
   }, []);
 
   // Clear flash after animation
@@ -27,7 +34,17 @@ function DelayDisplay() {
     return () => clearTimeout(id);
   }, [flash]);
 
-  if (delay === 0) return null;
+  if (delay === 0 && !thresholds) return null;
+
+  // Compute zone from delay + thresholds
+  let zone = 'good';
+  if (thresholds) {
+    if (delay >= thresholds.average) {
+      zone = 'critical';
+    } else if (delay >= thresholds.sustainable) {
+      zone = 'warning';
+    }
+  }
 
   const flashStyle = flash === 'up'
     ? { animation: 'delay-flash-up 0.4s ease-out' }
@@ -36,10 +53,25 @@ function DelayDisplay() {
       : {};
 
   return (
-    <div className="token-timer good" style={flashStyle}>
-      <span className="timer-label">Delay:</span>
-      <span className="timer-value">{delay}ms</span>
-    </div>
+    <>
+      {delay > 0 && (
+        <div className={`token-timer ${zone}`} style={flashStyle}>
+          <span className="timer-label">Delay:</span>
+          <span className="timer-value">{delay}ms</span>
+        </div>
+      )}
+      {thresholds && (
+        <div className="token-timer thresholds">
+          <span className="timer-label">Thresholds:</span>
+          <span className="timer-value">
+            {thresholds.peak}<span style={{ color: 'var(--accent-error)' }}>/</span>
+            {thresholds.average}<span style={{ color: 'var(--accent-warning)' }}>/</span>
+            {thresholds.sustainable}<span style={{ color: 'var(--accent-success)' }}>/</span>
+            {thresholds.floor}
+          </span>
+        </div>
+      )}
+    </>
   );
 }
 

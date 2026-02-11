@@ -13,15 +13,7 @@ class TaskAPI {
     this.maxRetries = 6;
     this.currentDelay = 0;
     this.onDelayChange = null;
-
-    // RPS tracking
-    this._rpsTimestamps = [];
-    this.currentRps = 0;
-    this.onRpsChange = null;
-
-    // TTR tracking
-    this._recoveryStartTime = null;
-    this.onTtrChange = null;
+    this.onThresholdsChange = null;
   }
 
   /**
@@ -32,36 +24,11 @@ class TaskAPI {
     this.onDelayChange?.(value);
   }
 
-  _trackRequest() {
-    const now = Date.now();
-    this._rpsTimestamps.push(now);
-    this._rpsTimestamps = this._rpsTimestamps.filter(t => t > now - 5000);
-    this.currentRps = Math.round((this._rpsTimestamps.length / 5) * 100) / 100;
-    this.onRpsChange?.(this.currentRps);
-  }
-
-  _resetRps() {
-    this._rpsTimestamps = [];
-    this.currentRps = 0;
-    this.onRpsChange?.(0);
-  }
-
-  _startRecovery() {
-    this._recoveryStartTime = Date.now();
-    this.onTtrChange?.({ recovering: true, since: this._recoveryStartTime });
-  }
-
-  _completeRecovery() {
-    if (this._recoveryStartTime) {
-      const duration = (Date.now() - this._recoveryStartTime) / 1000;
-      this._recoveryStartTime = null;
-      this.onTtrChange?.({ recovering: false, duration });
-    }
-  }
-
-  _resetTtr() {
-    this._recoveryStartTime = null;
-    this.onTtrChange?.(null);
+  /**
+   * Broadcast adaptive-backoff thresholds to the UI
+   */
+  _setThresholds(data) {
+    this.onThresholdsChange?.(data);
   }
 
   /**
@@ -220,8 +187,7 @@ class TaskAPI {
       while (!success) {
         try {
           const result = await this.moveTask(sourceListId, taskId, null, null, destinationListId);
-          this._trackRequest();
-          this._completeRecovery();
+
           results.successful.push({ taskId, result });
           success = true;
           consecutiveErrors = 0;
@@ -234,7 +200,7 @@ class TaskAPI {
           }
 
         } catch (error) {
-          this._trackRequest();
+
           lastError = error;
           consecutiveErrors++;
 
@@ -254,7 +220,7 @@ class TaskAPI {
               sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(currentDelay * 1.2)), 3000);
             }
             console.warn(`[API] Rate limit on task ${i + 1}/${taskIds.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
-            this._startRecovery();
+
 
             currentDelay = Math.min(Math.ceil(currentDelay * 2), 3000);
             this._setDelay(currentDelay);
@@ -304,8 +270,7 @@ class TaskAPI {
     }
 
     this._setDelay(0);
-    this._resetRps();
-    this._resetTtr();
+
     console.log(`[API] Bulk move ${results.stopped ? 'STOPPED' : 'complete'}: ${results.successful.length} successful, ${results.failed.length} failed`);
 
     return results;
@@ -343,8 +308,7 @@ class TaskAPI {
       while (!success) {
         try {
           const result = await this.insertTask(taskListId, task);
-          this._trackRequest();
-          this._completeRecovery();
+
           results.successful.push({ task: result, original: task });
           success = true;
           consecutiveErrors = 0;
@@ -357,7 +321,7 @@ class TaskAPI {
           }
 
         } catch (error) {
-          this._trackRequest();
+
           lastError = error;
           consecutiveErrors++;
 
@@ -377,7 +341,7 @@ class TaskAPI {
               sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(currentDelay * 1.2)), 3000);
             }
             console.warn(`[API] Rate limit on task ${i + 1}/${tasks.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
-            this._startRecovery();
+
 
             currentDelay = Math.min(Math.ceil(currentDelay * 2), 3000);
             this._setDelay(currentDelay);
@@ -418,8 +382,7 @@ class TaskAPI {
     }
 
     this._setDelay(0);
-    this._resetRps();
-    this._resetTtr();
+
     console.log(`[API] Bulk insert complete: ${results.successful.length} successful, ${results.failed.length} failed`);
 
     return results;
@@ -503,8 +466,7 @@ class TaskAPI {
             task: taskId,
             resource: mergedTask
           });
-          this._trackRequest();
-          this._completeRecovery();
+
 
           results.successful.push({ task: response.result });
           success = true;
@@ -518,7 +480,7 @@ class TaskAPI {
           }
 
         } catch (error) {
-          this._trackRequest();
+
           lastError = error;
           consecutiveErrors++;
 
@@ -538,7 +500,7 @@ class TaskAPI {
               sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(currentDelay * 1.2)), 3000);
             }
             console.warn(`[API] Rate limit on task ${i + 1}/${updates.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
-            this._startRecovery();
+
 
             currentDelay = Math.min(Math.ceil(currentDelay * 2), 3000);
             this._setDelay(currentDelay);
@@ -588,8 +550,7 @@ class TaskAPI {
     }
 
     this._setDelay(0);
-    this._resetRps();
-    this._resetTtr();
+
     console.log(`[API] Bulk update ${results.stopped ? 'STOPPED' : 'complete'}: ${results.successful.length} successful, ${results.failed.length} failed`);
 
     return results;
@@ -621,7 +582,6 @@ class TaskAPI {
         }
 
         const response = await window.gapi.client.tasks.tasks.list(params);
-        this._trackRequest();
 
         const tasks = response.result.items || [];
         allTasks = allTasks.concat(tasks);
@@ -638,6 +598,201 @@ class TaskAPI {
 
     console.log(`[API] Fetched all ${allTasks.length} tasks from list`);
     return allTasks;
+  }
+
+  /**
+   * EXPERIMENTAL — Unified bulk operation with adaptive backoff
+   * Consolidates move/insert/update retry + rate-limit logic into one place.
+   *
+   * @param {Array} items - Array of work items (task IDs, task objects, update descriptors, etc.)
+   * @param {Function} apiFn - Async callback that performs one API call: (item, index) => Promise<result>
+   * @param {Object} options
+   * @param {Function} options.onProgress - Progress callback: (current, total) => void
+   * @param {boolean}  options.stopOnFailure - Abort remaining items on non-retryable failure (default: true)
+   * @returns {{ successful: Array, failed: Array, stopped: boolean }}
+   */
+  async bulkOperation(items, apiFn, { onProgress = null, stopOnFailure = true } = {}) {
+    const results = {
+      successful: [],
+      failed: [],
+      stopped: false
+    };
+
+    // Initial parameters
+    const initialPeak = 3000;
+    const initialFloor = 200;
+    const initialDelay = 1000;
+    const initialAverage = Math.round((initialPeak + initialFloor) / 2);
+
+    // Adaptive state
+    let currentPeak = initialPeak;
+    let currentFloor = initialFloor;
+    let currentDelay = initialDelay;
+    let currentAverage = initialAverage;
+    let sustainableDelay = initialFloor;
+
+    // Counters
+    let retries = 0;
+    let rateLimitHits = 0;
+    const maxRetries = this.maxRetries;
+
+    // Rate limit hit timestamps for recent-hits tracking
+    const rateLimitTimestamps = [];
+
+    this._setDelay(currentDelay);
+
+    console.log(`[API] Bulk operation: ${items.length} items`);
+    console.log(`[API] Initial: delay=${initialDelay}ms, floor=${initialFloor}ms, peak=${initialPeak}ms, avg=${initialAverage}ms`);
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      retries = 0;
+      let success = false;
+      let lastError = null;
+
+      while (!success) {
+        try {
+          const result = await apiFn(item, i);
+
+          results.successful.push({ item, result });
+          success = true;
+          retries = 0;
+          if (rateLimitHits > 0) rateLimitHits--;
+
+          // Update peak on success
+          if (currentDelay > currentPeak) {
+            currentPeak = currentDelay;
+          }
+
+          // Speed-up on every success (zone-based reduction is gentle enough)
+          if (currentDelay >= currentAverage) {
+            // Zone 1 (red): Above average — aggressive 20% reduction to quickly find sustainable level
+            currentDelay = Math.round(currentDelay * 0.8);
+          } else if (currentDelay >= sustainableDelay) {
+            // Zone 2 (yellow): Between average and sustainable — moderate 10% reduction to encourage faster speeds while being cautious
+            currentDelay = max(currentDelay -1000, currentDelay * 0.9) ;
+            //currentDelay -= 1000;
+            // Flatten peak by 100ms on every success in green zone to encourage faster speeds, but only if we're below average
+            currentPeak = currentPeak - 100;
+          } else if (currentDelay > currentFloor) {
+            // Zone 3 (green): Below sustainable, above floor — cautious 10ms steps
+            currentDelay -= 10;
+            // Flatten peak by 1000ms on every success in green zone to encourage faster speeds, but only if we're above floor
+            currentPeak = currentPeak - 1000;
+          }
+          // At or below floor: no change
+
+          // Clamp to floor
+          currentDelay = Math.max(currentDelay, currentFloor);
+
+          // Recalculate all derived thresholds
+          currentAverage = Math.round((currentPeak + currentFloor) / 2);
+
+          this._setDelay(currentDelay);
+          this._setThresholds({ peak: currentPeak, average: currentAverage, sustainable: sustainableDelay, floor: currentFloor });
+
+        } catch (error) {
+
+          lastError = error;
+
+          const errorMsg = error.message || error.result?.error?.message || error.toString() || '';
+
+          const isRateLimit = errorMsg.includes('Rate limit') ||
+              errorMsg.includes('429') ||
+              errorMsg.includes('403') ||
+              errorMsg.includes('quota') ||
+              error.status === 429 ||
+              error.status === 403;
+
+          if (isRateLimit) {
+            rateLimitHits++;
+            rateLimitTimestamps.push(Date.now());
+
+            // Each 403 increments floor by 1ms, capped at currentAverage
+            currentFloor = Math.min(currentFloor + 1, currentAverage);
+
+            // each 403 adjusts average to midpoint between current floor and peak
+            currentAverage = Math.round((currentPeak + currentFloor) / 2);
+
+            // Sustainable delay is previous value +10ms
+            sustainableDelay += 10;
+
+            console.warn(`[API] Rate limit ${i + 1}/${items.length} (#${rateLimitHits}) floor=${currentFloor}ms sust=${sustainableDelay}ms:`, errorMsg);
+
+
+            // increase current delay by 50%
+            currentDelay = Math.ceil(currentDelay * 1.5);
+
+            this._setDelay(currentDelay);
+            this._setThresholds({ peak: currentPeak, average: currentAverage, sustainable: sustainableDelay, floor: currentFloor });
+
+            // Wait a separate backoff (grows with consecutive hits, min 2s, max 10s)
+            const backoffDelay = Math.min(1000 + 1000 * rateLimitHits, 10000);
+            console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
+            await this.delay(backoffDelay);
+
+          } else {
+            // Transient error — exponential backoff based on retries
+            retries++;
+            console.warn(`[API] Error ${i + 1}/${items.length} (${retries}/${maxRetries}):`, errorMsg);
+            await this.delay(this.batchDelay * Math.pow(2, retries));
+
+            if (retries >= maxRetries) {
+              results.failed.push({ item, error: errorMsg || 'Unknown error after maximum retries' });
+              console.error(`[API] Failed item after ${retries} attempts`);
+
+              if (stopOnFailure) {
+                console.error('[API] Stopping bulk operation');
+                results.stopped = true;
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      if (!success && stopOnFailure) {
+        break;
+      }
+
+      // Determine zone color
+      let zone;
+      if (currentDelay >= currentAverage) {
+        zone = 'red';
+      } else if (currentDelay >= sustainableDelay) {
+        zone = 'yellow';
+      } else {
+        zone = 'green';
+      }
+
+      // Count recent rate limit hits (last 5 minutes)
+      const fiveMinAgo = Date.now() - 5 * 60 * 1000;
+      const recentHits = rateLimitTimestamps.filter(t => t > fiveMinAgo).length;
+
+      if (onProgress) {
+        onProgress(i + 1, items.length, {
+          currentDelay,
+          currentPeak,
+          currentFloor,
+          currentAverage,
+          sustainableDelay,
+          zone,
+          recentRateLimitHits: recentHits,
+          rateLimitHits
+        });
+      }
+
+      if (i < items.length - 1) {
+        await this.delay(currentDelay);
+      }
+    }
+
+    this._setDelay(0);
+    this._setThresholds(null);
+
+    console.log(`[API] Bulk op ${results.stopped ? 'STOPPED' : 'done'}: ${results.successful.length} ok, ${results.failed.length} failed`);
+
+    return results;
   }
 
   /**
