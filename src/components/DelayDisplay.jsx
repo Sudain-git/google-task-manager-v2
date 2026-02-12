@@ -34,9 +34,8 @@ function DelayDisplay() {
     return () => clearTimeout(id);
   }, [flash]);
 
-  if (delay === 0 && !thresholds) return null;
+  if (delay === 0) return null;
 
-  // Compute zone from delay + thresholds
   let zone = 'good';
   if (thresholds) {
     if (delay >= thresholds.average) {
@@ -58,17 +57,6 @@ function DelayDisplay() {
         <div className={`token-timer ${zone}`} style={flashStyle}>
           <span className="timer-label">Delay:</span>
           <span className="timer-value">{delay}ms</span>
-        </div>
-      )}
-      {thresholds && (
-        <div className="token-timer thresholds">
-          <span className="timer-label"></span>
-          <span className="timer-value">
-            {thresholds.peak}<span style={{ color: 'var(--accent-error)' }}>/</span>
-            {thresholds.average}<span style={{ color: 'var(--accent-warning)' }}>/</span>
-            {thresholds.sustainable}<span style={{ color: 'var(--accent-success)' }}>/</span>
-            {thresholds.floor}
-          </span>
         </div>
       )}
     </>
