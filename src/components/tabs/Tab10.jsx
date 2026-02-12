@@ -11,8 +11,11 @@ function Tab10() {
   const [searchText, setSearchText] = useState('');
   const [searchIn, setSearchIn] = useState('title');
   const [hasDueDate, setHasDueDate] = useState('either');
-  const [hasParent, setHasParent] = useState('either');
-  const [hasNotes, setHasNotes] = useState('either');
+  const [durationMode, setDurationMode] = useState('any');
+  const [durationValue, setDurationValue] = useState('');
+  const [durationValueEnd, setDurationValueEnd] = useState('');
+  const [durationUnit, setDurationUnit] = useState('minutes');
+
   const [dateRangeType, setDateRangeType] = useState('due');
   const [dateRangePreset, setDateRangePreset] = useState('any');
   const [dateStart, setDateStart] = useState('');
@@ -106,7 +109,7 @@ function Tab10() {
     if (allTasks.length > 0) {
       handleApplyFilters();
     }
-  }, [searchText, searchIn, hasDueDate, hasParent, hasNotes, dateRangeType, dateRangePreset, dateStart, dateEnd, allTasks]);
+  }, [searchText, searchIn, hasDueDate, durationMode, durationValue, durationValueEnd, durationUnit, dateRangeType, dateRangePreset, dateStart, dateEnd, allTasks]);
 
   // Auto-apply sort whenever filtered tasks or sort criteria change
   useEffect(() => {
@@ -203,18 +206,32 @@ function Tab10() {
       });
     }
 
-    if (hasParent !== 'either') {
-      filtered = filtered.filter(task => {
-        const hasParentTask = !!task.parent;
-        return hasParent === 'yes' ? hasParentTask : !hasParentTask;
-      });
-    }
+    if (durationMode !== 'any' && durationValue !== '') {
+      const toSeconds = (val, unit) => {
+        const num = parseFloat(val);
+        if (isNaN(num)) return null;
+        if (unit === 'seconds') return num;
+        if (unit === 'minutes') return num * 60;
+        if (unit === 'hours') return num * 3600;
+        return null;
+      };
+      const threshold = toSeconds(durationValue, durationUnit);
+      const thresholdEnd = durationMode === 'between' ? toSeconds(durationValueEnd, durationUnit) : null;
 
-    if (hasNotes !== 'either') {
-      filtered = filtered.filter(task => {
-        const hasTaskNotes = !!(task.notes && task.notes.trim());
-        return hasNotes === 'yes' ? hasTaskNotes : !hasTaskNotes;
-      });
+      if (threshold !== null) {
+        filtered = filtered.filter(task => {
+          const dur = parseDuration(task.notes);
+          if (dur === Infinity) return false;
+          if (durationMode === 'less') return dur < threshold;
+          if (durationMode === 'greater') return dur > threshold;
+          if (durationMode === 'between' && thresholdEnd !== null) {
+            const low = Math.min(threshold, thresholdEnd);
+            const high = Math.max(threshold, thresholdEnd);
+            return dur >= low && dur <= high;
+          }
+          return true;
+        });
+      }
     }
 
     const range = getDateRangeFromPreset(dateRangePreset);
@@ -239,7 +256,7 @@ function Tab10() {
     }
 
     setFilteredTasks(filtered);
-  }, [allTasks, searchText, searchIn, hasDueDate, hasParent, hasNotes, dateRangeType, dateRangePreset, dateStart, dateEnd]);
+  }, [allTasks, searchText, searchIn, hasDueDate, durationMode, durationValue, durationValueEnd, durationUnit, dateRangeType, dateRangePreset, dateStart, dateEnd]);
 
   function parseDuration(notes) {
     if (!notes) return Infinity;
@@ -404,6 +421,7 @@ function Tab10() {
       } else if (operationType === 'dates') {
         if (algorithmType === 'experimental') {
           const items = taskIds.map((taskId, index) => {
+            const fullTask = allTasks.find(t => t.id === taskId);
             let updates;
             if (frequency === 'clear') {
               updates = { due: null };
@@ -411,7 +429,7 @@ function Tab10() {
               const dueDate = calculateDueDate(startDate, index, frequency, intervalAmount, intervalUnit);
               updates = { due: dueDate.toISOString() };
             }
-            return { taskId, updates };
+            return { taskId, resource: { ...fullTask, ...updates } };
           });
 
           result = await taskAPI.bulkOperation(
@@ -419,7 +437,7 @@ function Tab10() {
             (item) => window.gapi.client.tasks.tasks.update({
               tasklist: selectedList,
               task: item.taskId,
-              resource: item.updates
+              resource: item.resource
             }).then(r => r.result),
             {
               onProgress: (current, total, stats) => {
@@ -450,17 +468,17 @@ function Tab10() {
         }
       } else if (operationType === 'complete') {
         if (algorithmType === 'experimental') {
-          const items = taskIds.map(taskId => ({
-            taskId,
-            updates: { status: 'completed' }
-          }));
+          const items = taskIds.map(taskId => {
+            const fullTask = allTasks.find(t => t.id === taskId);
+            return { taskId, resource: { ...fullTask, status: 'completed' } };
+          });
 
           result = await taskAPI.bulkOperation(
             items,
             (item) => window.gapi.client.tasks.tasks.update({
               tasklist: selectedList,
               task: item.taskId,
-              resource: item.updates
+              resource: item.resource
             }).then(r => r.result),
             {
               onProgress: (current, total, stats) => {
@@ -621,36 +639,63 @@ function Tab10() {
               </select>
             </div>
 
-            {/* Has Parent */}
+            {/* Duration Filter */}
             <div className="form-group">
-              <label htmlFor="has-parent">Has Parent</label>
-              <select
-                id="has-parent"
-                value={hasParent}
-                onChange={(e) => setHasParent(e.target.value)}
-              >
-                <option value="either">Either</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </div>
-
-            {/* Has Notes */}
-            <div className="form-group">
-              <label htmlFor="has-notes">Has Notes</label>
-              <select
-                id="has-notes"
-                value={hasNotes}
-                onChange={(e) => setHasNotes(e.target.value)}
-              >
-                <option value="either">Either</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
+              <label>Duration</label>
+              <div style={{ display: 'flex', gap: 'var(--spacing-xs)', alignItems: 'center' }}>
+                <select
+                  value={durationMode}
+                  onChange={(e) => {
+                    setDurationMode(e.target.value);
+                    if (e.target.value === 'any') {
+                      setDurationValue('');
+                      setDurationValueEnd('');
+                    }
+                  }}
+                  style={{ width: `calc(${{ any: 3, less: 9, greater: 12, between: 7 }[durationMode]}ch + 3.75rem)`, flex: 'none' }}
+                >
+                  <option value="any">Any</option>
+                  <option value="less">Less than</option>
+                  <option value="greater">Greater than</option>
+                  <option value="between">Between</option>
+                </select>
+                <input
+                  type="number"
+                  min="0"
+                  value={durationValue}
+                  onChange={(e) => setDurationValue(e.target.value)}
+                  placeholder="0"
+                  disabled={durationMode === 'any'}
+                  style={{ width: '70px', flex: 'none' }}
+                />
+                {durationMode === 'between' && (
+                  <>
+                    <span style={{ color: 'var(--text-tertiary)', flex: 'none' }}>and</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={durationValueEnd}
+                      onChange={(e) => setDurationValueEnd(e.target.value)}
+                      placeholder="0"
+                      style={{ width: '70px', flex: 'none' }}
+                    />
+                  </>
+                )}
+                <select
+                  value={durationUnit}
+                  onChange={(e) => setDurationUnit(e.target.value)}
+                  disabled={durationMode === 'any'}
+                  style={{ width: `calc(${{ seconds: 7, minutes: 7, hours: 5 }[durationUnit]}ch + 3.75rem)`, flex: 'none' }}
+                >
+                  <option value="seconds">Seconds</option>
+                  <option value="minutes">Minutes</option>
+                  <option value="hours">Hours</option>
+                </select>
+              </div>
             </div>
 
             {/* Sort */}
-            <div className="form-group">
+            <div className="form-group" style={{ gridColumnStart: 1 }}>
               <label htmlFor="sort">Sort</label>
               <select
                 id="sort"

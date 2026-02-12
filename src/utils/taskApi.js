@@ -629,7 +629,7 @@ class TaskAPI {
     let currentFloor = initialFloor;
     let currentDelay = initialDelay;
     let currentAverage = initialAverage;
-    let sustainableDelay = initialFloor;
+    let sustainableDelay = initialDelay;
 
     // Counters
     let retries = 0;
@@ -671,14 +671,10 @@ class TaskAPI {
           } else if (currentDelay >= sustainableDelay) {
             // Zone 2 (yellow): Between average and sustainable — moderate 10% reduction to encourage faster speeds while being cautious
             currentDelay = max(currentDelay -1000, currentDelay * 0.9) ;
-            //currentDelay -= 1000;
-            // Flatten peak by 100ms on every success in green zone to encourage faster speeds, but only if we're below average
-            currentPeak = currentPeak - 100;
+
           } else if (currentDelay > currentFloor) {
             // Zone 3 (green): Below sustainable, above floor — cautious 10ms steps
-            currentDelay -= 10;
-            // Flatten peak by 1000ms on every success in green zone to encourage faster speeds, but only if we're above floor
-            currentPeak = currentPeak - 1000;
+            currentDelay -= 10;     
           }
           // At or below floor: no change
 
