@@ -12,8 +12,10 @@ function ParentChild() {
   const [searchText, setSearchText] = useState('');
   const [searchIn, setSearchIn] = useState('title');
   const [hasDueDate, setHasDueDate] = useState('either');
-  const [hasParentFilter, setHasParentFilter] = useState('either');
-  const [hasNotes, setHasNotes] = useState('either');
+  const [durationMode, setDurationMode] = useState('any');
+  const [durationValue, setDurationValue] = useState('');
+  const [durationValueEnd, setDurationValueEnd] = useState('');
+  const [durationUnit, setDurationUnit] = useState('minutes');
   const [dateRangeType, setDateRangeType] = useState('due'); // 'created', 'due'
   const [dateRangePreset, setDateRangePreset] = useState('any');
   const [dateStart, setDateStart] = useState('');
@@ -79,7 +81,7 @@ function ParentChild() {
     if (allTasks.length > 0) {
       handleApplyFilters();
     }
-  }, [searchText, searchIn, hasDueDate, hasParentFilter, hasNotes, dateRangeType, dateRangePreset, dateStart, dateEnd, allTasks]);
+  }, [searchText, searchIn, hasDueDate, durationMode, durationValue, durationValueEnd, durationUnit, dateRangeType, dateRangePreset, dateStart, dateEnd, allTasks]);
 
   // Auto-apply sort whenever filtered tasks or sort criteria change
   useEffect(() => {
@@ -227,20 +229,33 @@ function ParentChild() {
       });
     }
 
-    // Has parent filter
-    if (hasParentFilter !== 'either') {
-      filtered = filtered.filter(task => {
-        const hasParentTask = !!task.parent;
-        return hasParentFilter === 'yes' ? hasParentTask : !hasParentTask;
-      });
-    }
+    // Duration filter
+    if (durationMode !== 'any' && durationValue !== '') {
+      const toSeconds = (val, unit) => {
+        const num = parseFloat(val);
+        if (isNaN(num)) return null;
+        if (unit === 'seconds') return num;
+        if (unit === 'minutes') return num * 60;
+        if (unit === 'hours') return num * 3600;
+        return null;
+      };
+      const threshold = toSeconds(durationValue, durationUnit);
+      const thresholdEnd = durationMode === 'between' ? toSeconds(durationValueEnd, durationUnit) : null;
 
-    // Has notes filter
-    if (hasNotes !== 'either') {
-      filtered = filtered.filter(task => {
-        const hasTaskNotes = !!(task.notes && task.notes.trim());
-        return hasNotes === 'yes' ? hasTaskNotes : !hasTaskNotes;
-      });
+      if (threshold !== null) {
+        filtered = filtered.filter(task => {
+          const dur = parseDuration(task.notes);
+          if (dur === Infinity) return false;
+          if (durationMode === 'less') return dur < threshold;
+          if (durationMode === 'greater') return dur > threshold;
+          if (durationMode === 'between' && thresholdEnd !== null) {
+            const low = Math.min(threshold, thresholdEnd);
+            const high = Math.max(threshold, thresholdEnd);
+            return dur >= low && dur <= high;
+          }
+          return true;
+        });
+      }
     }
 
     // Date range filter (based on selected type)
@@ -267,7 +282,7 @@ function ParentChild() {
 
     setFilteredTasks(filtered);
     console.log(`[ParentChild] Filtered to ${filtered.length} tasks from ${allTasks.length} total`);
-  }, [allTasks, searchText, searchIn, hasDueDate, hasParentFilter, hasNotes, dateRangeType, dateRangePreset, dateStart, dateEnd]);
+  }, [allTasks, searchText, searchIn, hasDueDate, durationMode, durationValue, durationValueEnd, durationUnit, dateRangeType, dateRangePreset, dateStart, dateEnd]);
 
   /**
    * Parse duration from notes string
@@ -701,38 +716,65 @@ function ParentChild() {
               </select>
             </div>
 
-            {/* Has Parent */}
+            {/* Duration Filter */}
             <div className="form-group">
-              <label htmlFor="has-parent">Has Parent</label>
-              <select
-                id="has-parent"
-                value={hasParentFilter}
-                onChange={(e) => setHasParentFilter(e.target.value)}
-                disabled={isLoading}
-              >
-                <option value="either">Either</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </div>
-
-            {/* Has Notes */}
-            <div className="form-group">
-              <label htmlFor="has-notes">Has Notes</label>
-              <select
-                id="has-notes"
-                value={hasNotes}
-                onChange={(e) => setHasNotes(e.target.value)}
-                disabled={isLoading}
-              >
-                <option value="either">Either</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
+              <label>Duration</label>
+              <div style={{ display: 'flex', gap: 'var(--spacing-xs)', alignItems: 'center' }}>
+                <select
+                  value={durationMode}
+                  onChange={(e) => {
+                    setDurationMode(e.target.value);
+                    if (e.target.value === 'any') {
+                      setDurationValue('');
+                      setDurationValueEnd('');
+                    }
+                  }}
+                  disabled={isLoading}
+                  style={{ width: `calc(${{ any: 3, less: 9, greater: 12, between: 7 }[durationMode]}ch + 3.75rem)`, flex: 'none' }}
+                >
+                  <option value="any">Any</option>
+                  <option value="less">Less than</option>
+                  <option value="greater">Greater than</option>
+                  <option value="between">Between</option>
+                </select>
+                <input
+                  type="number"
+                  min="0"
+                  value={durationValue}
+                  onChange={(e) => setDurationValue(e.target.value)}
+                  placeholder="0"
+                  disabled={isLoading || durationMode === 'any'}
+                  style={{ width: '70px', flex: 'none' }}
+                />
+                {durationMode === 'between' && (
+                  <>
+                    <span style={{ color: 'var(--text-tertiary)', flex: 'none' }}>and</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={durationValueEnd}
+                      onChange={(e) => setDurationValueEnd(e.target.value)}
+                      placeholder="0"
+                      disabled={isLoading}
+                      style={{ width: '70px', flex: 'none' }}
+                    />
+                  </>
+                )}
+                <select
+                  value={durationUnit}
+                  onChange={(e) => setDurationUnit(e.target.value)}
+                  disabled={isLoading || durationMode === 'any'}
+                  style={{ width: `calc(${{ seconds: 7, minutes: 7, hours: 5 }[durationUnit]}ch + 3.75rem)`, flex: 'none' }}
+                >
+                  <option value="seconds">Seconds</option>
+                  <option value="minutes">Minutes</option>
+                  <option value="hours">Hours</option>
+                </select>
+              </div>
             </div>
 
             {/* Sort */}
-            <div className="form-group">
+            <div className="form-group" style={{ gridColumnStart: 1 }}>
               <label htmlFor="sort">Sort</label>
               <select
                 id="sort"

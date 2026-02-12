@@ -62,7 +62,7 @@ function DelayDisplay() {
       )}
       {thresholds && (
         <div className="token-timer thresholds">
-          <span className="timer-label">Thresholds:</span>
+          <span className="timer-label"></span>
           <span className="timer-value">
             {thresholds.peak}<span style={{ color: 'var(--accent-error)' }}>/</span>
             {thresholds.average}<span style={{ color: 'var(--accent-warning)' }}>/</span>
