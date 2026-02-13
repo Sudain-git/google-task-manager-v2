@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { taskAPI } from '../../utils/taskApi';
 import FetchingIndicator from '../FetchingIndicator';
 
-function Tab10() {
+function Dev() {
   const [taskLists, setTaskLists] = useState([]);
   const [selectedList, setSelectedList] = useState('');
   const [loadingLists, setLoadingLists] = useState(true);
@@ -38,13 +38,11 @@ function Tab10() {
   // Bulk operation testing
   const [destinationList, setDestinationList] = useState('');
   const [operationType, setOperationType] = useState('move');
-  const [algorithmType, setAlgorithmType] = useState('experimental');
   const [selectedTasks, setSelectedTasks] = useState([]);
   const [selectedPageSize, setSelectedPageSize] = useState(10);
   const [selectedPage, setSelectedPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
-  const [opStats, setOpStats] = useState(null);
   const [results, setResults] = useState(null);
 
   // Date operation controls
@@ -388,7 +386,6 @@ function Tab10() {
   async function handleRunOperation() {
     setIsLoading(true);
     setProgress({ current: 0, total: selectedTasks.length });
-    setOpStats(null);
     setResults(null);
 
     const taskIds = selectedTasks;
@@ -397,110 +394,43 @@ function Tab10() {
       let result;
 
       if (operationType === 'move') {
-        if (algorithmType === 'experimental') {
-          result = await taskAPI.bulkOperation(
-            taskIds,
-            (id) => taskAPI.moveTask(selectedList, id, null, null, destinationList),
-            {
-              onProgress: (current, total, stats) => {
-                setProgress({ current, total });
-                setOpStats(stats);
-              },
-              stopOnFailure: true
-            }
-          );
-        } else {
-          result = await taskAPI.bulkMoveTasks(
-            selectedList,
-            destinationList,
-            taskIds,
-            (current, total) => setProgress({ current, total }),
-            true
-          );
-        }
+        result = await taskAPI.bulkMoveTasks(
+          selectedList,
+          destinationList,
+          taskIds,
+          (current, total) => setProgress({ current, total }),
+          true
+        );
       } else if (operationType === 'dates') {
-        if (algorithmType === 'experimental') {
-          const items = taskIds.map((taskId, index) => {
-            const fullTask = allTasks.find(t => t.id === taskId);
-            let updates;
-            if (frequency === 'clear') {
-              updates = { due: null };
-            } else {
-              const dueDate = calculateDueDate(startDate, index, frequency, intervalAmount, intervalUnit);
-              updates = { due: dueDate.toISOString() };
-            }
-            return { taskId, resource: { ...fullTask, ...updates } };
-          });
+        const updates = taskIds.map((taskId, index) => {
+          let taskUpdates;
+          if (frequency === 'clear') {
+            taskUpdates = { due: null };
+          } else {
+            const dueDate = calculateDueDate(startDate, index, frequency, intervalAmount, intervalUnit);
+            taskUpdates = { due: dueDate.toISOString() };
+          }
+          return { taskId, updates: taskUpdates };
+        });
 
-          result = await taskAPI.bulkOperation(
-            items,
-            (item) => window.gapi.client.tasks.tasks.update({
-              tasklist: selectedList,
-              task: item.taskId,
-              resource: item.resource
-            }).then(r => r.result),
-            {
-              onProgress: (current, total, stats) => {
-                setProgress({ current, total });
-                setOpStats(stats);
-              },
-              stopOnFailure: true
-            }
-          );
-        } else {
-          const updates = taskIds.map((taskId, index) => {
-            let taskUpdates;
-            if (frequency === 'clear') {
-              taskUpdates = { due: null };
-            } else {
-              const dueDate = calculateDueDate(startDate, index, frequency, intervalAmount, intervalUnit);
-              taskUpdates = { due: dueDate.toISOString() };
-            }
-            return { taskId, updates: taskUpdates };
-          });
-
-          result = await taskAPI.bulkUpdateTasks(
-            selectedList,
-            updates,
-            (current, total) => setProgress({ current, total }),
-            true
-          );
-        }
+        result = await taskAPI.bulkUpdateTasks(
+          selectedList,
+          updates,
+          (current, total) => setProgress({ current, total }),
+          true
+        );
       } else if (operationType === 'complete') {
-        if (algorithmType === 'experimental') {
-          const items = taskIds.map(taskId => {
-            const fullTask = allTasks.find(t => t.id === taskId);
-            return { taskId, resource: { ...fullTask, status: 'completed' } };
-          });
+        const updates = taskIds.map(taskId => ({
+          taskId,
+          updates: { status: 'completed' }
+        }));
 
-          result = await taskAPI.bulkOperation(
-            items,
-            (item) => window.gapi.client.tasks.tasks.update({
-              tasklist: selectedList,
-              task: item.taskId,
-              resource: item.resource
-            }).then(r => r.result),
-            {
-              onProgress: (current, total, stats) => {
-                setProgress({ current, total });
-                setOpStats(stats);
-              },
-              stopOnFailure: true
-            }
-          );
-        } else {
-          const updates = taskIds.map(taskId => ({
-            taskId,
-            updates: { status: 'completed' }
-          }));
-
-          result = await taskAPI.bulkUpdateTasks(
-            selectedList,
-            updates,
-            (current, total) => setProgress({ current, total }),
-            true
-          );
-        }
+        result = await taskAPI.bulkUpdateTasks(
+          selectedList,
+          updates,
+          (current, total) => setProgress({ current, total }),
+          true
+        );
       }
 
       setResults(result);
@@ -511,16 +441,6 @@ function Tab10() {
       alert('Operation failed: ' + error.message);
     } finally {
       setIsLoading(false);
-      setOpStats(null);
-    }
-  }
-
-  function getZoneColor(zone) {
-    switch (zone) {
-      case 'red': return 'var(--accent-error, #e53e3e)';
-      case 'yellow': return 'var(--accent-warning, #ed8936)';
-      case 'green': return 'var(--accent-success, #38a169)';
-      default: return 'var(--text-tertiary)';
     }
   }
 
@@ -1235,20 +1155,6 @@ function Tab10() {
               </>
             )}
 
-            {/* Algorithm Selector */}
-            <div className="form-group" style={{ margin: 0 }}>
-              <label htmlFor="dev-algorithm">Algorithm</label>
-              <select
-                id="dev-algorithm"
-                value={algorithmType}
-                onChange={(e) => setAlgorithmType(e.target.value)}
-                disabled={isLoading}
-              >
-                <option value="experimental">Experimental (adaptive zones)</option>
-                <option value="legacy">Legacy (per-operation)</option>
-              </select>
-            </div>
-
             {/* Run Button */}
             <button
               className="primary"
@@ -1280,39 +1186,6 @@ function Tab10() {
             </div>
           </div>
 
-          {/* Live stats (experimental only) */}
-          {opStats && (
-            <div style={{
-              marginTop: 'var(--spacing-md)',
-              padding: 'var(--spacing-sm) var(--spacing-md)',
-              background: 'var(--bg-tertiary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.75rem',
-              display: 'flex',
-              gap: 'var(--spacing-lg)',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              fontFamily: 'monospace'
-            }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)' }}>
-                <span style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '50%',
-                  background: getZoneColor(opStats.zone),
-                  display: 'inline-block'
-                }} />
-                Zone: {opStats.zone}
-              </span>
-              <span>Delay: {opStats.currentDelay}ms</span>
-              <span>Floor: {opStats.currentFloor}ms</span>
-              <span>Avg: {opStats.currentAverage}ms</span>
-              <span>Peak: {opStats.currentPeak}ms</span>
-              <span>Sustainable: {opStats.sustainableDelay}ms</span>
-              <span>Rate limits: {opStats.rateLimitHits} outstanding, {opStats.recentRateLimitHits} in last 5m</span>
-            </div>
-          )}
         </div>
       )}
 
@@ -1369,4 +1242,4 @@ function Tab10() {
   );
 }
 
-export default Tab10;
+export default Dev;

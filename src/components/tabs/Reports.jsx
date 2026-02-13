@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { taskAPI } from '../../utils/taskApi';
 
-function Settings() {
+function Reports() {
   const [taskLists, setTaskLists] = useState([]);
   const [selectedList, setSelectedList] = useState('');
   const [loadingLists, setLoadingLists] = useState(true);
@@ -63,4 +63,4 @@ function Settings() {
   );
 }
 
-export default Settings;
+export default Reports;
