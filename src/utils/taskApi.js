@@ -396,25 +396,27 @@ class TaskAPI {
    * @param {Array} updates - Array of {taskId, updates} objects
    * @param {Function} onProgress - Progress callback (current, total)
    * @param {boolean} stopOnFailure - Stop processing if a task fails (default: true)
+   * @param {Array|null} prefetchedTasks - Optional pre-fetched tasks array to avoid redundant fetch
    */
-  async bulkUpdateTasks(taskListId, updates, onProgress = null, stopOnFailure = true) {
+  async bulkUpdateTasks(taskListId, updates, onProgress = null, stopOnFailure = true, prefetchedTasks = null) {
     const results = {
       successful: [],
       failed: [],
       stopped: false
     };
 
-    // Fetch all tasks from list upfront
-    console.log('[API] Pre-fetching all tasks from list for bulk update...');
-    const allTasks = await this.getAllTasksFromList(taskListId, false, false);
-    
-    // Create map for O(1) lookup
-    const taskMap = new Map();
-    allTasks.forEach(task => {
-      taskMap.set(task.id, task);
-    });
-    
-    console.log(`[API] Created task map with ${taskMap.size} tasks`);
+    let taskMap;
+    if (prefetchedTasks) {
+      taskMap = new Map();
+      prefetchedTasks.forEach(task => taskMap.set(task.id, task));
+      console.log(`[API] Using pre-fetched task map with ${taskMap.size} tasks`);
+    } else {
+      console.log('[API] Pre-fetching all tasks from list for bulk update...');
+      const allTasks = await this.getAllTasksFromList(taskListId, false, false);
+      taskMap = new Map();
+      allTasks.forEach(task => taskMap.set(task.id, task));
+      console.log(`[API] Created task map with ${taskMap.size} tasks`);
+    }
 
     let currentDelay = this.batchDelay;
     const maxRetries = this.maxRetries;
@@ -669,12 +671,12 @@ class TaskAPI {
             // Zone 1 (red): Above average — aggressive 20% reduction to quickly find sustainable level
             currentDelay = Math.round(currentDelay * 0.8);
           } else if (currentDelay >= sustainableDelay) {
-            // Zone 2 (yellow): Between average and sustainable — moderate 10% reduction to encourage faster speeds while being cautious
-            currentDelay = max(currentDelay -1000, currentDelay * 0.9) ;
+            // Zone 2 (yellow): Between average and sustainable — Decrease by 1000ms to approach sustainable level more cautiously
+            currentDelay = currentDelay - 1000;
 
           } else if (currentDelay > currentFloor) {
-            // Zone 3 (green): Below sustainable, above floor — cautious 10ms steps
-            currentDelay -= 10;     
+            // Zone 3 (green): Below sustainable, above floor - crawling up by 1ms to find true floor without risking rate limit
+            currentDelay -= 1;     
           }
           // At or below floor: no change
 
