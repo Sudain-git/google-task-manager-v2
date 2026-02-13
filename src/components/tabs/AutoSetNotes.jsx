@@ -11,6 +11,7 @@ function AutoSetNotes() {
   const [loadingLists, setLoadingLists] = useState(true);
   const [youtubeChannels, setYoutubeChannels] = useState([]);
   const [eligibleTasks, setEligibleTasks] = useState([]);
+  const [allScannedTasks, setAllScannedTasks] = useState([]);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [results, setResults] = useState(null);
 
@@ -107,7 +108,8 @@ function AutoSetNotes() {
 
       console.log('[AutoSetNotes] Fetching all tasks from list...');
       const allTasks = await taskAPI.getAllTasksFromList(listId, false, false);
-      
+      setAllScannedTasks(allTasks);
+
       console.log('[AutoSetNotes] Scanning for YouTube URLs...');
       
       // Filter for tasks with YouTube URLs (videos and shorts) and empty notes
@@ -210,7 +212,8 @@ async function handleProcessTasks() {
         selectedList,
         updates,
         (current, total) => setProgress({ current, total }),
-        true // stopOnFailure
+        true, // stopOnFailure
+        allScannedTasks // pass pre-fetched tasks to avoid redundant fetch
       );
 
       // Add not found to results
@@ -234,6 +237,7 @@ async function handleProcessTasks() {
 
   function handleClear() {
     setEligibleTasks([]);
+    setAllScannedTasks([]);
     setYoutubeChannels([]);
     setResults(null);
     setProgress({ current: 0, total: 0 });
