@@ -308,6 +308,25 @@
   color: var(--accent-error);
 }
 
+/* Word Cloud */
+.wordcloud {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg);
+}
+.wordcloud span {
+  line-height: 1.2;
+  cursor: default;
+}
+.wordcloud--positioned {
+  position: relative;
+  min-height: 400px;
+  overflow: hidden;
+}
+
 /* Responsive Design */
 
 /* Medium screens - 3 columns when width is tight */

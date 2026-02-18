@@ -95,7 +95,7 @@ function App() {
       <div className="app-container">
         <div className="login-screen">
           <div className="login-card">
-            <h1>Google Task Manager V2</h1>
+            <h1>Task Manager</h1>
             <p className="tagline">Bulk operations for Google Tasks</p>
             
             <div className="feature-grid">
@@ -105,15 +105,15 @@ function App() {
               </div>
               <div className="feature">
                 <span className="feature-icon">📅</span>
-                <span>Set Due Dates</span>
+                <span>Bulk Due Dates</span>
               </div>
               <div className="feature">
                 <span className="feature-icon">🎥</span>
-                <span>YouTube Import</span>
+                <span>Reports</span>
               </div>
               <div className="feature">
                 <span className="feature-icon">🔗</span>
-                <span>Parent/Child</span>
+                <span>Bulk Move</span>
               </div>
             </div>
 
@@ -123,7 +123,7 @@ function App() {
 
             <div className="privacy-notice">
               <p>
-                This app requires access to your Google Tasks.
+                This app requires access to your Tasks list.
                 Your data is never stored on our servers.
               </p>
             </div>
