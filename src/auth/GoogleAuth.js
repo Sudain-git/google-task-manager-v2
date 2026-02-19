@@ -199,7 +199,7 @@ createTokenClient() {
       console.log('[Auth] Requesting token...');
       
       // Request access token - this will show Google's consent screen
-      this.tokenClient.requestAccessToken({ prompt: 'consent' });
+      this.tokenClient.requestAccessToken({ prompt: '' });
       
     } catch (error) {
       console.error('[Auth] Sign in failed:', error);

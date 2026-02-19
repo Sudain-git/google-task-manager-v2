@@ -873,6 +873,13 @@ function BulkComplete() {
                       fontSize: '0.875rem'
                     }}>
                       <button
+                        onClick={() => setFilteredPage(1)}
+                        disabled={filteredPage === 1}
+                        style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                      >
+                        First
+                      </button>
+                      <button
                         onClick={() => setFilteredPage(p => Math.max(1, p - 1))}
                         disabled={filteredPage === 1}
                         style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
@@ -888,6 +895,13 @@ function BulkComplete() {
                         style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
                       >
                         Next
+                      </button>
+                      <button
+                        onClick={() => setFilteredPage(totalPages)}
+                        disabled={filteredPage === totalPages}
+                        style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                      >
+                        Last
                       </button>
                     </div>
                   );
@@ -1027,6 +1041,13 @@ function BulkComplete() {
                         fontSize: '0.875rem'
                       }}>
                         <button
+                          onClick={() => setSelectedPage(1)}
+                          disabled={selectedPage === 1}
+                          style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                        >
+                          First
+                        </button>
+                        <button
                           onClick={() => setSelectedPage(p => Math.max(1, p - 1))}
                           disabled={selectedPage === 1}
                           style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
@@ -1042,6 +1063,13 @@ function BulkComplete() {
                           style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
                         >
                           Next
+                        </button>
+                        <button
+                          onClick={() => setSelectedPage(totalPages)}
+                          disabled={selectedPage === totalPages}
+                          style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                        >
+                          Last
                         </button>
                       </div>
                     );

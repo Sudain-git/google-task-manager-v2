@@ -9,9 +9,9 @@ import BulkMove from './tabs/BulkMove';
 import BulkComplete from './tabs/BulkComplete';
 import ParentChild from './tabs/ParentChild';
 import AutoSetNotes from './tabs/AutoSetNotes';
-import YouTubeImport from './tabs/YouTubeImport';
+import ListImport from './tabs/ListImport';
 import Reports from './tabs/Reports';
-import Dev from './tabs/Dev';
+import Inspect from './tabs/Inspect';
 
 const TABS = [
   { id: 'bulk-insert', label: 'Bulk Insert', component: BulkInsert },
@@ -21,9 +21,9 @@ const TABS = [
   { id: 'bulk-complete', label: 'Complete', component: BulkComplete },
   { id: 'parent-child', label: 'Parent/Child', component: ParentChild },
   { id: 'auto-notes', label: 'Auto Notes', component: AutoSetNotes },
-  { id: 'youtube', label: 'YouTube Import', component: YouTubeImport },
+  { id: 'youtube', label: 'List Import', component: ListImport },
   { id: 'reports', label: 'Reports', component: Reports },
-  { id: 'dev', label: 'Dev', component: Dev },
+  { id: 'dev', label: 'Inspect', component: Inspect },
 ];
 
 function TabNavigation() {

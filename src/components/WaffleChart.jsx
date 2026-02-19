@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-function WaffleChart({ segments, total }) {
+function WaffleChart({ segments, total, onSegmentClick }) {
   const cells = useMemo(() => {
     if (!total || !segments || segments.length === 0) return [];
 
@@ -35,10 +35,12 @@ function WaffleChart({ segments, total }) {
           <div
             key={i}
             title={cell.label}
+            onClick={() => onSegmentClick && onSegmentClick(cell.label)}
             style={{
               aspectRatio: '1',
               backgroundColor: cell.color,
               borderRadius: 'var(--radius-sm, 4px)',
+              cursor: onSegmentClick ? 'pointer' : undefined,
             }}
           />
         ))}
@@ -51,7 +53,11 @@ function WaffleChart({ segments, total }) {
         flexWrap: 'wrap',
       }}>
         {segments.map(seg => (
-          <div key={seg.label} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div
+            key={seg.label}
+            onClick={() => onSegmentClick && onSegmentClick(seg.label)}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: onSegmentClick ? 'pointer' : undefined }}
+          >
             <div style={{
               width: 12,
               height: 12,

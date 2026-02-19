@@ -284,6 +284,118 @@ class TaskAPI {
   }
 
 /**
+   * Bulk set/remove parent for tasks with rate limiting and retry logic
+   * @param {string} taskListId - The task list ID
+   * @param {Array} childTaskIds - Array of child task IDs
+   * @param {string|null} parentId - Parent task ID, or null to orphan
+   * @param {Function} onProgress - Progress callback (current, total)
+   */
+  async bulkSetParent(taskListId, childTaskIds, parentId, onProgress = null) {
+    const results = {
+      successful: [],
+      failed: [],
+      stopped: false
+    };
+
+    let currentDelay = this.batchDelay;
+    const maxRetries = this.maxRetries;
+    this._setDelay(currentDelay);
+
+    console.log(`[API] Starting bulk set parent of ${childTaskIds.length} tasks with ${currentDelay}ms delay and ${maxRetries} max retries`);
+    console.log(`[API] Parent ID: ${parentId || '(orphan)'}`);
+
+    let consecutiveErrors = 0;
+    let rateLimitHits = 0;
+    let sustainableDelay = this.batchDelay;
+    const maxConsecutiveErrors = 5;
+
+    for (let i = 0; i < childTaskIds.length; i++) {
+      const taskId = childTaskIds[i];
+      let retries = 0;
+      let success = false;
+
+      while (!success) {
+        try {
+          const result = await this.moveTask(taskListId, taskId, parentId);
+
+          results.successful.push({ taskId, result });
+          success = true;
+          consecutiveErrors = 0;
+          if (rateLimitHits > 0) rateLimitHits--;
+
+          // Gradually speed up if no errors
+          if (rateLimitHits === 0 && currentDelay > sustainableDelay) {
+            currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
+            this._setDelay(currentDelay);
+          }
+
+        } catch (error) {
+
+          consecutiveErrors++;
+
+          const errorMsg = error.message || error.result?.error?.message || error.toString() || '';
+
+          // Check if it's a rate limit error
+          const isRateLimit = errorMsg.includes('Rate limit') ||
+              errorMsg.includes('429') ||
+              errorMsg.includes('403') ||
+              errorMsg.includes('quota') ||
+              error.status === 429 ||
+              error.status === 403;
+
+          if (isRateLimit) {
+
+            rateLimitHits++;
+            if (rateLimitHits === 1) {
+              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(currentDelay * 1.2)), 3000);
+            }
+            console.warn(`[API] Rate limit on task ${i + 1}/${childTaskIds.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
+
+            currentDelay = Math.min(Math.ceil(currentDelay * 2), 3000);
+            this._setDelay(currentDelay);
+
+            const backoffDelay = Math.min(1000 + 1000 * rateLimitHits, 10000);
+            console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
+            await this.delay(backoffDelay);
+
+          } else {
+            retries++;
+            console.warn(`[API] Error on task ${i + 1}/${childTaskIds.length} (attempt ${retries}/${maxRetries}):`, errorMsg || 'Unknown error');
+            await this.delay(this.batchDelay * Math.pow(2, retries));
+
+            if (retries >= maxRetries) {
+              const failureMsg = errorMsg || 'Unknown error after maximum retries';
+              results.failed.push({ taskId, error: failureMsg });
+              console.error(`[API] Failed to set parent for task after ${retries} attempts:`, taskId);
+              break;
+            }
+          }
+
+          if (consecutiveErrors >= maxConsecutiveErrors) {
+            console.warn(`[API] ${consecutiveErrors} consecutive errors, pausing for 5 seconds...`);
+            await this.delay(5000);
+            consecutiveErrors = 0;
+          }
+        }
+      }
+
+      if (onProgress) {
+        onProgress(i + 1, childTaskIds.length);
+      }
+
+      if (i < childTaskIds.length - 1) {
+        await this.delay(currentDelay);
+      }
+    }
+
+    this._setDelay(0);
+
+    console.log(`[API] Bulk set parent complete: ${results.successful.length} successful, ${results.failed.length} failed`);
+
+    return results;
+  }
+
+/**
    * Bulk insert tasks with rate limiting and retry logic
    * @param {string} taskListId - The task list ID
    * @param {Array} tasks - Array of task objects

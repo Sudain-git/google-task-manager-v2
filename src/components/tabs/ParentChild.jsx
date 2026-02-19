@@ -48,6 +48,7 @@ function ParentChild() {
 
   // Processing
   const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
 
   // Warning animation for nesting rule violation
   const [showNestingWarning, setShowNestingWarning] = useState(false);
@@ -463,18 +464,20 @@ function ParentChild() {
    */
   async function handleAbandonAllChildren(parentId) {
     const children = getChildrenOfTask(parentId);
-    if (children.length === 0) return;
+    const childIds = children.filter(c => c.parent).map(c => c.id);
+    if (childIds.length === 0) return;
 
     try {
       setIsLoading(true);
+      setProgress({ current: 0, total: childIds.length });
 
-      for (let i = 0; i < children.length; i++) {
-        await taskAPI.moveTask(selectedList, children[i].id, null);
+      const results = await taskAPI.bulkSetParent(
+        selectedList, childIds, null,
+        (current, total) => setProgress({ current, total })
+      );
 
-        // Rate limit: 200ms delay between calls
-        if (i < children.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
+      if (results.failed.length > 0) {
+        alert(`Failed to abandon ${results.failed.length} of ${childIds.length} children.`);
       }
 
       // Clear hover state and refresh
@@ -487,6 +490,7 @@ function ParentChild() {
       alert('Failed to abandon children: ' + error.message);
     } finally {
       setIsLoading(false);
+      setProgress({ current: 0, total: 0 });
     }
   }
 
@@ -522,7 +526,13 @@ function ParentChild() {
       return;
     }
 
-    if (childTaskIds.length === 0) {
+    // Filter out tasks that already have this parent
+    const tasksNeedingUpdate = childTaskIds.filter(id => {
+      const task = getTaskById(id);
+      return task?.parent !== taskId;
+    });
+
+    if (tasksNeedingUpdate.length === 0) {
       setDesignatedParentId(taskId);
       return;
     }
@@ -531,15 +541,15 @@ function ParentChild() {
     try {
       setIsLoading(true);
       setDesignatedParentId(taskId);
+      setProgress({ current: 0, total: tasksNeedingUpdate.length });
 
-      for (let i = 0; i < childTaskIds.length; i++) {
-        const childId = childTaskIds[i];
-        await taskAPI.moveTask(selectedList, childId, taskId);
+      const results = await taskAPI.bulkSetParent(
+        selectedList, tasksNeedingUpdate, taskId,
+        (current, total) => setProgress({ current, total })
+      );
 
-        // Rate limit: 200ms delay between calls
-        if (i < childTaskIds.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
+      if (results.failed.length > 0) {
+        alert(`Failed to set parent for ${results.failed.length} of ${tasksNeedingUpdate.length} tasks.`);
       }
 
       // Clear designated parent to refresh status display from API data
@@ -553,6 +563,7 @@ function ParentChild() {
       alert('Failed to set parent: ' + error.message);
     } finally {
       setIsLoading(false);
+      setProgress({ current: 0, total: 0 });
     }
   }
 
@@ -1595,6 +1606,26 @@ function ParentChild() {
                   )}
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Progress Indicator */}
+      {isLoading && progress.total > 0 && (
+        <div className="form-section">
+          <div className="progress-container">
+            <div className="progress-header">
+              <span className="progress-label">Setting parent...</span>
+              <span className="progress-count">
+                {progress.current} / {progress.total}
+              </span>
+            </div>
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
+              />
             </div>
           </div>
         </div>

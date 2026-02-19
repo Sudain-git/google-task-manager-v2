@@ -102,6 +102,39 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
     return { total, avgPerDay, busiestDay: { date: busiestDay[0], count: busiestDay[1] }, avgLeadDays };
   }, [countsByDate, tasks]);
 
+  const rangeStats = useMemo(() => {
+    if (!dateStart) return null;
+    const end = dateEnd || dateStart;
+    const entries = Object.entries(countsByDate).filter(([d]) => d >= dateStart && d <= end);
+    if (entries.length === 0) return { total: 0, avgPerDay: 0, busiestDay: { date: dateStart, count: 0 }, avgLeadDays: null };
+    const total = entries.reduce((s, [, c]) => s + c, 0);
+    const dates = entries.map(([d]) => d).sort();
+    const oldest = new Date(dates[0] + 'T00:00:00');
+    const newest = new Date(dates[dates.length - 1] + 'T00:00:00');
+    const daySpan = Math.max(1, Math.round((newest - oldest) / 86400000) + 1);
+    const avgPerDay = total / daySpan;
+    let busiestDay = entries[0];
+    for (const e of entries) {
+      if (e[1] > busiestDay[1]) busiestDay = e;
+    }
+
+    let avgLeadDays = null;
+    const diffs = [];
+    for (const t of tasks) {
+      if (!t.due || !t.updated) continue;
+      const d = localDateStr(t.due);
+      if (d < dateStart || d > end) continue;
+      const due = new Date(t.due);
+      const updated = new Date(t.updated);
+      diffs.push((due - updated) / 86400000);
+    }
+    if (diffs.length > 0) {
+      avgLeadDays = diffs.reduce((s, d) => s + d, 0) / diffs.length;
+    }
+
+    return { total, avgPerDay, busiestDay: { date: busiestDay[0], count: busiestDay[1] }, avgLeadDays };
+  }, [countsByDate, tasks, dateStart, dateEnd]);
+
   function isInRange(dateStr) {
     if (!dateStart) return false;
     if (!dateEnd) return dateStr === dateStart;
@@ -160,11 +193,12 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
     );
   }
 
-  const metrics = stats ? [
-    { label: 'Total with Due Date', value: stats.total },
-    { label: 'Busiest Due Date', value: `${formatDate(stats.busiestDay.date)} (${stats.busiestDay.count})` },
-    { label: 'Avg Tasks/Day', value: stats.avgPerDay.toFixed(1) },
-    ...(stats.avgLeadDays != null ? [{ label: 'Average Lead Days', value: `${stats.avgLeadDays.toFixed(1)}d` }] : []),
+  const activeStats = rangeStats || stats;
+  const metrics = activeStats ? [
+    { label: 'Total with Due Date', value: activeStats.total },
+    { label: 'Busiest Due Date', value: `${formatDate(activeStats.busiestDay.date)} (${activeStats.busiestDay.count})` },
+    { label: 'Avg Tasks/Day', value: activeStats.avgPerDay.toFixed(1) },
+    ...(activeStats.avgLeadDays != null ? [{ label: 'Average Lead Days', value: `${activeStats.avgLeadDays.toFixed(1)}d` }] : []),
   ] : [];
 
   return (

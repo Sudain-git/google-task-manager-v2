@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import WaffleChart from '../WaffleChart';
 
-function ParentChildReport({ tasks }) {
+function ParentChildReport({ tasks, onTaskSelect }) {
   const stats = useMemo(() => {
     if (!tasks || tasks.length === 0) return null;
 
@@ -69,7 +69,12 @@ function ParentChildReport({ tasks }) {
       </div>
 
       <div className="card">
-        <WaffleChart segments={segments} total={stats.total} />
+        <WaffleChart segments={segments} total={stats.total} onSegmentClick={(label) => {
+          if (!onTaskSelect) return;
+          const map = { Parents: stats.parents, Children: stats.children, Standalone: stats.standalone };
+          const tasks = map[label];
+          if (tasks) onTaskSelect(tasks.map(t => t.id));
+        }} />
       </div>
     </div>
   );

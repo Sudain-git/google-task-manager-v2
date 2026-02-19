@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { taskAPI } from '../../utils/taskApi';
 import { extractPlaylistId, getPlaylistVideos } from '../../utils/youtubeApi';
 
-function YouTubeImport() {
+function ListImport() {
   // Core state
   const [taskLists, setTaskLists] = useState([]);
   const [selectedList, setSelectedList] = useState('');
@@ -339,4 +339,4 @@ function YouTubeImport() {
   );
 }
 
-export default YouTubeImport;
+export default ListImport;
