@@ -80,7 +80,7 @@ This app runs entirely client-side. There is no backend server.
 ### 5. Clone and run locally
 
 ```bash
-git clone https://github.com/Sudain/google-task-manager-v2.git
+git clone https://github.com/Sudain-git/google-task-manager-v2.git
 cd google-task-manager-v2
 npm install
 ```

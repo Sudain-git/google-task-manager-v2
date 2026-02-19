@@ -76,7 +76,7 @@ function App() {
             <div className="error-actions">
               <button onClick={() => window.location.reload()}>Reload Page</button>
               <a 
-                href="https://github.com/Sudain/google-task-manager-v2/blob/main/SETUP_GUIDE.md" 
+                href="https://github.com/Sudain-git/google-task-manager-v2/blob/main/README.md#setup" 
                 target="_blank" 
                 rel="noopener noreferrer"
               >
@@ -157,7 +157,7 @@ function App() {
         <p>
           Built with Claude · 
           <a 
-            href="https://github.com/Sudain/google-task-manager-v2" 
+            href="https://github.com/Sudain-git/google-task-manager-v2" 
             target="_blank" 
             rel="noopener noreferrer"
           >
