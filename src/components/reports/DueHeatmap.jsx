@@ -7,12 +7,12 @@ const DAY_LABEL_WIDTH = 30;
 const MONTH_LABEL_HEIGHT = 18;
 const EMPTY_COLOR = 'var(--border-color, #e2e8f0)';
 const YEAR_PALETTES = [
-  ['#fde2c8', '#f5a623', '#e07c00', '#a85800'], // amber
-  ['#fce4ec', '#f06292', '#d81b60', '#880e4f'], // rose
-  ['#fff3e0', '#ffb74d', '#f57c00', '#e65100'], // orange
-  ['#fbe9e7', '#ff8a65', '#e64a19', '#bf360c'], // deep orange
-  ['#fff8e1', '#ffd54f', '#f9a825', '#f57f17'], // gold
-  ['#fce4ec', '#ef9a9a', '#e53935', '#b71c1c'], // red
+  ['#fef3e2','#fde2c8','#fbc68e','#f5a623','#e89520','#d4820a','#c07000','#a85800','#8a4800','#6d3800'], // amber
+  ['#fce4ec','#f8bbd0','#f48fb1','#f06292','#ec407a','#e91e63','#d81b60','#c2185b','#ad1457','#880e4f'], // rose
+  ['#fff3e0','#ffe0b2','#ffcc80','#ffb74d','#ffa726','#ff9800','#f57c00','#ef6c00','#e65100','#bf4400'], // orange
+  ['#fbe9e7','#ffccbc','#ffab91','#ff8a65','#ff7043','#f4511e','#e64a19','#d84315','#bf360c','#9a2c0a'], // deep orange
+  ['#fff8e1','#ffecb3','#ffe082','#ffd54f','#ffca28','#ffc107','#f9a825','#f8961e','#f57f17','#c66400'], // gold
+  ['#fce4ec','#f5cbcb','#efafaf','#ef9a9a','#e57373','#ef5350','#e53935','#d32f2f','#c62828','#b71c1c'], // red
 ];
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -35,16 +35,18 @@ function formatDate(dateStr) {
 function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
   const todayStr = localDateStr(new Date());
 
-  const { countsByDate, years } = useMemo(() => {
-    if (!tasks || tasks.length === 0) return { countsByDate: {}, years: [] };
+  const { countsByDate, childDates, years } = useMemo(() => {
+    if (!tasks || tasks.length === 0) return { countsByDate: {}, childDates: new Set(), years: [] };
 
     const counts = {};
+    const childSet = new Set();
     let minYear = Infinity;
     let maxYear = -Infinity;
     for (const t of tasks) {
       if (!t.due) continue;
       const d = localDateStr(t.due);
       counts[d] = (counts[d] || 0) + 1;
+      if (t.parent) childSet.add(d);
       const y = parseInt(d.slice(0, 4), 10);
       if (y < minYear) minYear = y;
       if (y > maxYear) maxYear = y;
@@ -66,22 +68,10 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
       if (y !== currentYear) yrs.push(y);
     }
 
-    return { countsByDate: counts, years: yrs };
+    return { countsByDate: counts, childDates: childSet, years: yrs };
   }, [tasks]);
 
-  const { thresholds } = useMemo(() => {
-    const nonZero = Object.values(countsByDate).filter(c => c > 0).sort((a, b) => a - b);
-    if (nonZero.length === 0) return { thresholds: [1, 2, 3, 4] };
-    const q1 = nonZero[Math.floor(nonZero.length * 0.25)] || 1;
-    const q2 = nonZero[Math.floor(nonZero.length * 0.5)] || q1;
-    const q3 = nonZero[Math.floor(nonZero.length * 0.75)] || q2;
-    const q4 = nonZero[nonZero.length - 1] || q3;
-    const t = [q1];
-    if (q2 > t[0]) t.push(q2); else t.push(t[t.length - 1] + 1);
-    if (q3 > t[1]) t.push(q3); else t.push(t[t.length - 1] + 1);
-    if (q4 > t[2]) t.push(q4); else t.push(t[t.length - 1] + 1);
-    return { thresholds: t };
-  }, [countsByDate]);
+  const STEPS = 10;
 
   const stats = useMemo(() => {
     const entries = Object.entries(countsByDate);
@@ -118,14 +108,6 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
     return dateStr >= dateStart && dateStr <= dateEnd;
   }
 
-  function getColorLevel(count) {
-    if (count === 0) return 0;
-    if (count <= thresholds[0]) return 1;
-    if (count <= thresholds[1]) return 2;
-    if (count <= thresholds[2]) return 3;
-    return 4;
-  }
-
   function buildYearGrid(year) {
     const jan1 = new Date(year, 0, 1);
     const startDow = jan1.getDay();
@@ -136,6 +118,7 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
 
     const cells = [];
     let col = 0;
+    let maxCount = 0;
     const cur = new Date(jan1);
 
     while (cur <= lastDay) {
@@ -145,14 +128,15 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
       const weekCol = Math.floor((Math.round((cur - jan1) / 86400000) + startDow) / 7);
       col = Math.max(col, weekCol);
       const count = countsByDate[dateStr] || 0;
-      cells.push({
-        x: weekCol,
-        y: dow,
-        date: dateStr,
-        count,
-        level: getColorLevel(count),
-      });
+      if (count > maxCount) maxCount = count;
+      cells.push({ x: weekCol, y: dow, date: dateStr, count });
       cur.setDate(cur.getDate() + 1);
+    }
+
+    maxCount = Math.max(maxCount, 4);
+    const step = maxCount / STEPS;
+    for (const cell of cells) {
+      cell.level = cell.count === 0 ? 0 : Math.min(STEPS, Math.ceil(cell.count / step));
     }
 
     const totalCols = col + 1;
@@ -165,7 +149,7 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
       monthLabels.push({ month: m, x: weekCol });
     }
 
-    return { cells, totalCols, monthLabels };
+    return { cells, totalCols, monthLabels, maxCount };
   }
 
   if (!tasks || tasks.length === 0) {
@@ -206,7 +190,7 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
       )}
 
       {years.map((year, yearIdx) => {
-        const { cells, totalCols, monthLabels } = buildYearGrid(year);
+        const { cells, totalCols, monthLabels, maxCount } = buildYearGrid(year);
         const svgWidth = DAY_LABEL_WIDTH + totalCols * CELL_STEP;
         const svgHeight = MONTH_LABEL_HEIGHT + 7 * CELL_STEP + 8;
         const palette = YEAR_PALETTES[yearIdx % YEAR_PALETTES.length];
@@ -265,20 +249,50 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
                       stroke={isInRange(cell.date) ? 'var(--text-primary, #1a202c)' : undefined}
                       strokeWidth={isInRange(cell.date) ? 2 : undefined}
                     >
-                      <title>{`${formatDate(cell.date)}: ${cell.count} task${cell.count !== 1 ? 's' : ''}`}</title>
+                      <title>{`${formatDate(cell.date)}: ${cell.count} task${cell.count !== 1 ? 's' : ''}${childDates.has(cell.date) ? ' (has subtasks)' : ''}`}</title>
                     </rect>
-                    {cell.date === todayStr && (
+                    {cell.date === todayStr && (() => {
+                      const cx = DAY_LABEL_WIDTH + cell.x * CELL_STEP + CELL_SIZE / 2;
+                      const cy = MONTH_LABEL_HEIGHT + cell.y * CELL_STEP + CELL_SIZE / 2;
+                      const s = CELL_SIZE / 2;
+                      const p = s / 3;
+                      return (
+                        <polygon
+                          points={`${cx},${cy-s} ${cx+p},${cy-p} ${cx+s},${cy} ${cx+p},${cy+p} ${cx},${cy+s} ${cx-p},${cy+p} ${cx-s},${cy} ${cx-p},${cy-p}`}
+                          fill="#fff"
+                          stroke="#000"
+                          strokeWidth={1}
+                        />
+                      );
+                    })()}
+                    {childDates.has(cell.date) && cell.date !== todayStr && (
                       <circle
-                        cx={DAY_LABEL_WIDTH + cell.x * CELL_STEP + CELL_SIZE - 3}
-                        cy={MONTH_LABEL_HEIGHT + cell.y * CELL_STEP + 3}
-                        r={2.5}
-                        fill="#e53e3e"
+                        cx={DAY_LABEL_WIDTH + cell.x * CELL_STEP + CELL_SIZE / 2}
+                        cy={MONTH_LABEL_HEIGHT + cell.y * CELL_STEP + CELL_SIZE / 2}
+                        r={2}
+                        fill="#3b82f6"
                       />
                     )}
                   </g>
                 ))}
               </svg>
             </div>
+            {maxCount > 0 && (() => {
+              const step = maxCount / STEPS;
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6, fontSize: '10px', color: 'var(--text-secondary, #4a5568)' }}>
+                  <span>0</span>
+                  {yearColors.map((c, i) => (
+                    <div
+                      key={i}
+                      style={{ width: CELL_SIZE, height: CELL_SIZE, borderRadius: 2, background: c }}
+                      title={i === 0 ? '0' : `${Math.round(step * (i - 1)) + 1}–${Math.round(step * i)}`}
+                    />
+                  ))}
+                  <span>{maxCount}</span>
+                </div>
+              );
+            })()}
           </div>
         );
       })}
