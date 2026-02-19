@@ -260,12 +260,110 @@ function Reports() {
 
               {duplicates.length > 0 && (
                 <>
-                  <ul>
-                    {duplicates.slice(0, 5).map((d, i) => (
-                      <li key={i}>{d.matchValue}</li>
-                    ))}
-                    {duplicates.length > 5 && <li>...and {duplicates.length - 5} more</li>}
-                  </ul>
+                  <div className="form-group">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)' }}>
+                      <input
+                        type="checkbox"
+                        checked={duplicateTaskIds.length > 0 && duplicateTaskIds.every(id => selectedTaskIds.has(id))}
+                        onChange={() => {
+                          const allSelected = duplicateTaskIds.every(id => selectedTaskIds.has(id));
+                          setSelectedTaskIds(prev => {
+                            const next = new Set(prev);
+                            for (const id of duplicateTaskIds) {
+                              if (allSelected) next.delete(id); else next.add(id);
+                            }
+                            return next;
+                          });
+                        }}
+                      />
+                      Tasks ({duplicateTaskIds.length})
+                    </label>
+                    <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--spacing-xs)',
+                        padding: 'var(--spacing-xs) var(--spacing-sm)',
+                        borderBottom: '1px solid var(--border-color)',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        color: 'var(--text-secondary)',
+                      }}>
+                        <span style={{ width: '1rem' }} />
+                        <span style={{ flex: 1 }}>Title</span>
+                        <span style={{ flex: 'none' }}>Due</span>
+                      </div>
+                      {duplicateTaskIds.map(id => {
+                        const task = taskById[id];
+                        if (!task) return null;
+                        return (
+                          <div
+                            key={task.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: 'var(--spacing-xs)',
+                              padding: 'var(--spacing-xs) var(--spacing-sm)',
+                              borderBottom: '1px solid var(--border-color)',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedTaskIds.has(task.id)}
+                              onChange={() => toggleTask(task.id)}
+                              style={{ cursor: 'pointer', marginTop: '2px' }}
+                            />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ cursor: 'pointer' }} onClick={() => toggleTask(task.id)}>
+                                {task.title}
+                              </div>
+                              {(task.parent && taskById[task.parent] || childrenOf[task.id]) && (
+                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+                                  {task.parent && taskById[task.parent] && (
+                                    <span
+                                      onClick={() => { setTaskIdFilter(new Set([task.parent])); setSelectedTaskIds(new Set([task.parent])); }}
+                                      style={{
+                                        fontSize: '0.7rem',
+                                        color: '#3182ce',
+                                        cursor: 'pointer',
+                                        background: 'rgba(49,130,206,0.1)',
+                                        padding: '1px 5px',
+                                        borderRadius: '3px',
+                                      }}
+                                      title={`Select parent: ${taskById[task.parent].title}`}
+                                    >
+                                      Parent: {taskById[task.parent].title}
+                                    </span>
+                                  )}
+                                  {childrenOf[task.id] && (
+                                    <span
+                                      onClick={() => { const ids = childrenOf[task.id].map(c => c.id); setTaskIdFilter(new Set(ids)); setSelectedTaskIds(new Set(ids)); }}
+                                      style={{
+                                        fontSize: '0.7rem',
+                                        color: '#dd6b20',
+                                        cursor: 'pointer',
+                                        background: 'rgba(221,107,32,0.1)',
+                                        padding: '1px 5px',
+                                        borderRadius: '3px',
+                                      }}
+                                      title={`Select ${childrenOf[task.id].length} children`}
+                                    >
+                                      {childrenOf[task.id].length} children
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {task.due && (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', flex: 'none', marginTop: '2px' }}>
+                                {new Date(task.due).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                   <div className="form-group">
                     <label htmlFor="dest-list">Move duplicates to</label>
