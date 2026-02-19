@@ -30,6 +30,7 @@ function Reports() {
   const [selectedTaskIds, setSelectedTaskIds] = useState(new Set());
   const [dateFilterField, setDateFilterField] = useState('due');
   const [clickCount, setClickCount] = useState(0);
+  const [taskIdFilter, setTaskIdFilter] = useState(null);
 
   // Move operation
   const [destinationList, setDestinationList] = useState('');
@@ -47,10 +48,12 @@ function Reports() {
   }, [allTasks, filterText]);
 
   const dateFilteredTasks = useMemo(() => {
-    if (!dateStart && !dateEnd) return allTasks;
+    if (taskIdFilter) return filteredTasks.filter(t => taskIdFilter.has(t.id));
+
+    if (!dateStart && !dateEnd) return filteredTasks;
     const effectiveEnd = dateEnd || dateStart;
 
-    return allTasks.filter(t => {
+    return filteredTasks.filter(t => {
       const val = t[dateFilterField];
       if (!val) return false;
       const parsed = new Date(val);
@@ -59,7 +62,20 @@ function Reports() {
       if (effectiveEnd && d > effectiveEnd) return false;
       return true;
     });
-  }, [allTasks, dateStart, dateEnd, dateFilterField]);
+  }, [filteredTasks, dateStart, dateEnd, dateFilterField, taskIdFilter]);
+
+  const { taskById, childrenOf } = useMemo(() => {
+    const byId = {};
+    const children = {};
+    for (const t of allTasks) {
+      byId[t.id] = t;
+      if (t.parent) {
+        if (!children[t.parent]) children[t.parent] = [];
+        children[t.parent].push(t);
+      }
+    }
+    return { taskById: byId, childrenOf: children };
+  }, [allTasks]);
 
   function toggleTask(taskId) {
     setSelectedTaskIds(prev => {
@@ -80,6 +96,7 @@ function Reports() {
 
   function handleHeatmapDateClick(date, field) {
     setSelectedTaskIds(new Set());
+    setTaskIdFilter(null);
     // If switching heatmap type mid-selection, reset to click 1 with new field
     if (clickCount === 1 && field !== dateFilterField) {
       setDateStart(date);
@@ -336,7 +353,13 @@ function Reports() {
             </div>
 
             {selectedReport === 'parentChild' && (
-              <ParentChildReport tasks={filteredTasks} />
+              <ParentChildReport tasks={filteredTasks} onTaskSelect={(ids) => {
+                setDateStart('');
+                setDateEnd('');
+                setClickCount(0);
+                setTaskIdFilter(new Set(ids));
+                setSelectedTaskIds(new Set(ids));
+              }} />
             )}
             {selectedReport === 'timeline' && (
               <TaskTimelineChart tasks={filteredTasks} />
@@ -374,6 +397,7 @@ function Reports() {
                   onChange={(e) => {
                     setDateStart(e.target.value);
                     setClickCount(e.target.value ? 1 : 0);
+                    setTaskIdFilter(null);
                   }}
                   style={{ flex: '1 1 0', minWidth: 'calc(10ch + 3.75rem)' }}
                 />
@@ -384,6 +408,7 @@ function Reports() {
                   onChange={(e) => {
                     setDateEnd(e.target.value);
                     setClickCount(e.target.value ? 2 : dateStart ? 1 : 0);
+                    setTaskIdFilter(null);
                   }}
                   style={{ flex: '1 1 0', minWidth: 'calc(10ch + 3.75rem)' }}
                 />
@@ -418,29 +443,69 @@ function Reports() {
                       <span style={{ flex: 'none' }}>{dateFilterField === 'updated' ? 'Updated' : 'Due'}</span>
                     </div>
                     {dateFilteredTasks.map(task => (
-                      <label
+                      <div
                         key={task.id}
                         style={{
                           display: 'flex',
-                          alignItems: 'center',
+                          alignItems: 'flex-start',
                           gap: 'var(--spacing-xs)',
                           padding: 'var(--spacing-xs) var(--spacing-sm)',
                           borderBottom: '1px solid var(--border-color)',
-                          cursor: 'pointer',
                         }}
                       >
                         <input
                           type="checkbox"
                           checked={selectedTaskIds.has(task.id)}
                           onChange={() => toggleTask(task.id)}
+                          style={{ cursor: 'pointer', marginTop: '2px' }}
                         />
-                        <span style={{ flex: 1 }}>{task.title}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ cursor: 'pointer' }} onClick={() => toggleTask(task.id)}>
+                            {task.title}
+                          </div>
+                          {(task.parent && taskById[task.parent] || childrenOf[task.id]) && (
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+                              {task.parent && taskById[task.parent] && (
+                                <span
+                                  onClick={() => { setTaskIdFilter(new Set([task.parent])); setSelectedTaskIds(new Set([task.parent])); }}
+                                  style={{
+                                    fontSize: '0.7rem',
+                                    color: '#3182ce',
+                                    cursor: 'pointer',
+                                    background: 'rgba(49,130,206,0.1)',
+                                    padding: '1px 5px',
+                                    borderRadius: '3px',
+                                  }}
+                                  title={`Select parent: ${taskById[task.parent].title}`}
+                                >
+                                  Parent: {taskById[task.parent].title}
+                                </span>
+                              )}
+                              {childrenOf[task.id] && (
+                                <span
+                                  onClick={() => { const ids = childrenOf[task.id].map(c => c.id); setTaskIdFilter(new Set(ids)); setSelectedTaskIds(new Set(ids)); }}
+                                  style={{
+                                    fontSize: '0.7rem',
+                                    color: '#dd6b20',
+                                    cursor: 'pointer',
+                                    background: 'rgba(221,107,32,0.1)',
+                                    padding: '1px 5px',
+                                    borderRadius: '3px',
+                                  }}
+                                  title={`Select ${childrenOf[task.id].length} children`}
+                                >
+                                  {childrenOf[task.id].length} children
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                         {task[dateFilterField] && (
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', flex: 'none' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', flex: 'none', marginTop: '2px' }}>
                             {new Date(task[dateFilterField]).toLocaleDateString()}
                           </span>
                         )}
-                      </label>
+                      </div>
                     ))}
                   </>
                 )}
