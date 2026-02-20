@@ -6,13 +6,14 @@ const CELL_STEP = CELL_SIZE + CELL_GAP;
 const DAY_LABEL_WIDTH = 30;
 const MONTH_LABEL_HEIGHT = 18;
 const EMPTY_COLOR = 'var(--border-color, #e2e8f0)';
+const STEPS = 10;
 const YEAR_PALETTES = [
-  ['#c6e6f7', '#6bb8e8', '#2e86c1', '#1a5276'], // sky blue
-  ['#c3e6cb', '#6dca83', '#27ae60', '#1a7a42'], // emerald
-  ['#d5c8f0', '#a98ede', '#7d3cc7', '#5521a0'], // violet
-  ['#b5e8f0', '#5bc4d4', '#0e8fa0', '#0a6370'], // teal
-  ['#f0c6d9', '#de7faa', '#c4407a', '#8c2d58'], // magenta
-  ['#c8daf0', '#7ba3d4', '#3568a8', '#234980'], // steel blue
+  ['#e0f0ff','#c6e6f7','#a0d4f1','#6bb8e8','#3ea0de','#2e86c1','#256fa3','#1d5a87','#1a5276','#133d5a'], // sky blue
+  ['#e0f5e4','#c3e6cb','#97d4a5','#6dca83','#45b864','#27ae60','#209c52','#1a7a42','#156835','#105428'], // emerald
+  ['#ece0f8','#d5c8f0','#c0a8e8','#a98ede','#9270d1','#7d3cc7','#6b2fb3','#5521a0','#481a8c','#3a1275'], // violet
+  ['#dff5f8','#b5e8f0','#8edae4','#5bc4d4','#34b0c4','#0e8fa0','#0b7d8c','#0a6370','#084f5a','#063d46'], // teal
+  ['#fae0ec','#f0c6d9','#e4a4c4','#de7faa','#d05990','#c4407a','#ae3268','#8c2d58','#742448','#5c1a38'], // magenta
+  ['#e0e8f5','#c8daf0','#a8c4e4','#7ba3d4','#5688c2','#3568a8','#2c5892','#234980','#1b3a68','#142d52'], // steel blue
 ];
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -58,21 +59,6 @@ function UpdatedHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
     return { countsByDate: counts, years: yrs };
   }, [tasks]);
 
-  const { thresholds } = useMemo(() => {
-    const nonZero = Object.values(countsByDate).filter(c => c > 0).sort((a, b) => a - b);
-    if (nonZero.length === 0) return { thresholds: [1, 2, 3, 4] };
-    const q1 = nonZero[Math.floor(nonZero.length * 0.25)] || 1;
-    const q2 = nonZero[Math.floor(nonZero.length * 0.5)] || q1;
-    const q3 = nonZero[Math.floor(nonZero.length * 0.75)] || q2;
-    const q4 = nonZero[nonZero.length - 1] || q3;
-    // Ensure strictly increasing thresholds
-    const t = [q1];
-    if (q2 > t[0]) t.push(q2); else t.push(t[t.length - 1] + 1);
-    if (q3 > t[1]) t.push(q3); else t.push(t[t.length - 1] + 1);
-    if (q4 > t[2]) t.push(q4); else t.push(t[t.length - 1] + 1);
-    return { thresholds: t };
-  }, [countsByDate]);
-
   const stats = useMemo(() => {
     const entries = Object.entries(countsByDate);
     if (entries.length === 0) return null;
@@ -96,14 +82,6 @@ function UpdatedHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
     return dateStr >= dateStart && dateStr <= dateEnd;
   }
 
-  function getColorLevel(count) {
-    if (count === 0) return 0;
-    if (count <= thresholds[0]) return 1;
-    if (count <= thresholds[1]) return 2;
-    if (count <= thresholds[2]) return 3;
-    return 4;
-  }
-
   function buildYearGrid(year) {
     const today = new Date();
     const todayLocalStr = localDateStr(today);
@@ -117,10 +95,8 @@ function UpdatedHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
 
     const cells = [];
     let col = 0;
+    let maxCount = 0;
     const cur = new Date(jan1);
-
-    // Fill empty cells before Jan 1 in the first week
-    // (those days belong to the previous year)
 
     while (cur <= lastDay) {
       const dateStr = localDateStr(cur);
@@ -129,14 +105,15 @@ function UpdatedHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
       const weekCol = Math.floor((Math.round((cur - jan1) / 86400000) + startDow) / 7);
       col = Math.max(col, weekCol);
       const count = countsByDate[dateStr] || 0;
-      cells.push({
-        x: weekCol,
-        y: dow,
-        date: dateStr,
-        count,
-        level: getColorLevel(count),
-      });
+      if (count > maxCount) maxCount = count;
+      cells.push({ x: weekCol, y: dow, date: dateStr, count });
       cur.setDate(cur.getDate() + 1);
+    }
+
+    maxCount = Math.max(maxCount, 4);
+    const step = maxCount / STEPS;
+    for (const cell of cells) {
+      cell.level = cell.count === 0 ? 0 : Math.min(STEPS, Math.ceil(cell.count / step));
     }
 
     const totalCols = col + 1;
@@ -151,7 +128,7 @@ function UpdatedHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
       monthLabels.push({ month: m, x: weekCol });
     }
 
-    return { cells, totalCols, monthLabels };
+    return { cells, totalCols, monthLabels, maxCount };
   }
 
   if (!tasks || tasks.length === 0) {
@@ -191,7 +168,7 @@ function UpdatedHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
       )}
 
       {years.map((year, yearIdx) => {
-        const { cells, totalCols, monthLabels } = buildYearGrid(year);
+        const { cells, totalCols, monthLabels, maxCount } = buildYearGrid(year);
         const svgWidth = DAY_LABEL_WIDTH + totalCols * CELL_STEP;
         const svgHeight = MONTH_LABEL_HEIGHT + 7 * CELL_STEP + 8;
         const palette = YEAR_PALETTES[yearIdx % YEAR_PALETTES.length];
@@ -252,18 +229,40 @@ function UpdatedHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
                     >
                       <title>{`${formatDate(cell.date)}: ${cell.count} task${cell.count !== 1 ? 's' : ''}`}</title>
                     </rect>
-                    {cell.date === todayStr && (
-                      <circle
-                        cx={DAY_LABEL_WIDTH + cell.x * CELL_STEP + CELL_SIZE - 3}
-                        cy={MONTH_LABEL_HEIGHT + cell.y * CELL_STEP + 3}
-                        r={2.5}
-                        fill="#e53e3e"
-                      />
-                    )}
+                    {cell.date === todayStr && (() => {
+                      const cx = DAY_LABEL_WIDTH + cell.x * CELL_STEP + CELL_SIZE / 2;
+                      const cy = MONTH_LABEL_HEIGHT + cell.y * CELL_STEP + CELL_SIZE / 2;
+                      const s = CELL_SIZE / 2;
+                      const p = s / 3;
+                      return (
+                        <polygon
+                          points={`${cx},${cy-s} ${cx+p},${cy-p} ${cx+s},${cy} ${cx+p},${cy+p} ${cx},${cy+s} ${cx-p},${cy+p} ${cx-s},${cy} ${cx-p},${cy-p}`}
+                          fill="#fff"
+                          stroke="#000"
+                          strokeWidth={1}
+                        />
+                      );
+                    })()}
                   </g>
                 ))}
               </svg>
             </div>
+            {maxCount > 0 && (() => {
+              const step = maxCount / STEPS;
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6, fontSize: '10px', color: 'var(--text-secondary, #4a5568)' }}>
+                  <span>0</span>
+                  {yearColors.map((c, i) => (
+                    <div
+                      key={i}
+                      style={{ width: CELL_SIZE, height: CELL_SIZE, borderRadius: 2, background: c }}
+                      title={i === 0 ? '0' : `${Math.round(step * (i - 1)) + 1}–${Math.round(step * i)}`}
+                    />
+                  ))}
+                  <span>{maxCount}</span>
+                </div>
+              );
+            })()}
           </div>
         );
       })}

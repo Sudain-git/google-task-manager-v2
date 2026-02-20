@@ -1,8 +1,14 @@
 import { useState, useMemo } from 'react';
 
+function localDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function DueTimelineChart({ tasks }) {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [rangeMode, setRangeMode] = useState('full');
+  const [target, setTarget] = useState('lowerQuartile');
 
   const dateRange = useMemo(() => {
     if (!tasks || tasks.length === 0) return { min: '', max: '' };
@@ -48,8 +54,59 @@ function DueTimelineChart({ tasks }) {
     );
   }
 
+  function handleRangeChange(mode) {
+    setRangeMode(mode);
+    if (mode === 'full') {
+      setStartDate('');
+      setEndDate('');
+    } else if (mode === '14d') {
+      const today = new Date();
+      const from = new Date(today);
+      from.setDate(from.getDate() - 7);
+      const to = new Date(today);
+      to.setDate(to.getDate() + 7);
+      setStartDate(localDateStr(from));
+      setEndDate(localDateStr(to));
+    } else if (mode === '60d') {
+      const today = new Date();
+      const from = new Date(today);
+      from.setDate(from.getDate() - 30);
+      const to = new Date(today);
+      to.setDate(to.getDate() + 30);
+      setStartDate(localDateStr(from));
+      setEndDate(localDateStr(to));
+    }
+    // 'custom' → no-op
+  }
+
+  function handleStartChange(val) {
+    setStartDate(val);
+    setRangeMode('custom');
+  }
+
+  function handleEndChange(val) {
+    setEndDate(val);
+    setRangeMode('custom');
+  }
+
   const maxCount = Math.max(1, ...dataPoints.map(p => p.count));
   const totalInRange = dataPoints.reduce((s, p) => s + p.count, 0);
+
+  const targetValue = useMemo(() => {
+    if (target === 'none') return 0;
+    if (target === '2') return 2;
+    const counts = dataPoints.map(p => p.count);
+    if (target === 'average') {
+      if (counts.length === 0) return 0;
+      return counts.reduce((s, c) => s + c, 0) / counts.length;
+    }
+    if (target === 'lowerQuartile') {
+      const nonZero = counts.filter(c => c > 0).sort((a, b) => a - b);
+      if (nonZero.length === 0) return 0;
+      return nonZero[Math.floor(nonZero.length * 0.25)] || nonZero[0];
+    }
+    return 0;
+  }, [target, dataPoints]);
 
   // Chart dimensions
   const padding = { top: 20, right: 20, bottom: 50, left: 45 };
@@ -96,7 +153,7 @@ function DueTimelineChart({ tasks }) {
               id="due-timeline-start"
               type="date"
               value={effectiveStart}
-              onChange={e => setStartDate(e.target.value)}
+              onChange={e => handleStartChange(e.target.value)}
             />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -105,11 +162,39 @@ function DueTimelineChart({ tasks }) {
               id="due-timeline-end"
               type="date"
               value={effectiveEnd}
-              onChange={e => setEndDate(e.target.value)}
+              onChange={e => handleEndChange(e.target.value)}
             />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label htmlFor="due-timeline-range">Range</label>
+            <select
+              id="due-timeline-range"
+              value={rangeMode}
+              onChange={e => handleRangeChange(e.target.value)}
+            >
+              <option value="full">Full Range</option>
+              <option value="14d">+/- 7 days</option>
+              <option value="60d">+/- 30 days</option>
+              <option value="custom">Custom</option>
+            </select>
           </div>
           <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', paddingBottom: '6px' }}>
             {totalInRange} task{totalInRange !== 1 ? 's' : ''} in range
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end', marginTop: 'var(--spacing-sm, 8px)' }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label htmlFor="due-timeline-target">Target</label>
+            <select
+              id="due-timeline-target"
+              value={target}
+              onChange={e => setTarget(e.target.value)}
+            >
+              <option value="none">None</option>
+              <option value="2">2</option>
+              <option value="lowerQuartile">Lower Quartile</option>
+              <option value="average">Average</option>
+            </select>
           </div>
         </div>
       </div>
@@ -213,6 +298,32 @@ function DueTimelineChart({ tasks }) {
                 </text>
               </>
             )}
+
+            {/* Target line */}
+            {target !== 'none' && targetValue > 0 && (() => {
+              const y = padding.top + chartH - (targetValue / maxCount) * chartH;
+              return (
+                <>
+                  <line
+                    x1={padding.left}
+                    y1={y}
+                    x2={padding.left + chartW}
+                    y2={y}
+                    stroke="#e53e3e"
+                    strokeWidth="1.5"
+                    strokeDasharray="6,4"
+                  />
+                  <text
+                    x={padding.left + chartW + 4}
+                    y={y + 4}
+                    fontSize="10"
+                    fill="#e53e3e"
+                  >
+                    {Number.isInteger(targetValue) ? targetValue : targetValue.toFixed(1)}
+                  </text>
+                </>
+              );
+            })()}
 
             {/* Data line */}
             {dataPoints.length > 1 && (
