@@ -4,6 +4,8 @@ Bulk management tool for Google Tasks. Select tasks, apply operations in batch, 
 
 **Live app**: https://sudain.github.io/google-task-manager-v2/
 
+**[Privacy Policy](https://sudain.github.io/google-task-manager-v2/privacy.html)** | **[Terms of Service](https://sudain.github.io/google-task-manager-v2/terms.html)**
+
 ## Features
 
 ### Tabs
