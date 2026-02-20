@@ -162,6 +162,21 @@
   margin: 0;
 }
 
+.privacy-notice .legal-links {
+  margin-top: var(--spacing-sm);
+}
+
+.privacy-notice .legal-links a {
+  color: var(--accent-primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.privacy-notice .legal-links a:hover {
+  color: var(--accent-secondary);
+  text-decoration: underline;
+}
+
 /* App Header */
 .app-header {
   background: var(--bg-secondary);

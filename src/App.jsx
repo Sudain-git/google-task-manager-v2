@@ -126,6 +126,11 @@ function App() {
                 This app requires access to your Tasks list.
                 Your data is never stored on our servers.
               </p>
+              <p className="legal-links">
+                <a href="https://sudain-git.github.io/google-task-manager-v2/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+                {' | '}
+                <a href="https://sudain-git.github.io/google-task-manager-v2/terms.html" target="_blank" rel="noopener noreferrer">Terms of Service</a>
+              </p>
             </div>
           </div>
         </div>
