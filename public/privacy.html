@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Google Task Manager</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; max-width: 700px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    h1 { font-size: 1.6rem; }
+    h2 { font-size: 1.2rem; margin-top: 2rem; }
+    a { color: #1a73e8; }
+    .updated { color: #666; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: February 20, 2026</p>
+
+  <p><strong>Google Task Manager</strong> is an open-source, client-side web application operated by Sudain. This policy describes how the app handles your data.</p>
+
+  <h2>What data is accessed</h2>
+  <p>When you sign in with Google, the app requests access to your Google Tasks (scope: <code>auth/tasks</code>). This allows the app to read and write your task lists and tasks. No other Google account data is accessed.</p>
+
+  <h2>How your data is handled</h2>
+  <ul>
+    <li>All communication happens directly between your browser and Google's APIs. No data passes through any intermediary server.</li>
+    <li>OAuth access tokens are held in memory only and are never written to localStorage, cookies, or any persistent storage. Tokens expire after 1 hour.</li>
+    <li>The app has no server and no database. Nothing is stored, collected, or transmitted beyond your direct interaction with Google's APIs.</li>
+  </ul>
+
+  <h2>YouTube Data API</h2>
+  <p>The app uses the YouTube Data API (via an API key) to fetch public video metadata such as title, duration, and channel name. No user data is sent to YouTube through this feature.</p>
+
+  <h2>Cookies, analytics, and tracking</h2>
+  <p>The app does not use cookies, analytics, tracking pixels, or any form of data collection. There are no third-party scripts beyond the Google Identity Services library used for sign-in.</p>
+
+  <h2>Data retention</h2>
+  <p>The app retains no data between sessions. When you close or refresh the page, all in-memory data (including your access token) is discarded. Your tasks remain in your Google account, managed by Google.</p>
+
+  <h2>Third-party services</h2>
+  <ul>
+    <li><strong>Google Identity Services</strong> — used for OAuth sign-in.</li>
+    <li><strong>Google Tasks API</strong> — used to read and write your tasks.</li>
+    <li><strong>YouTube Data API</strong> — used to fetch public video metadata.</li>
+    <li><strong>GitHub Pages</strong> — hosts the static app files.</li>
+  </ul>
+
+  <h2>Revoking access</h2>
+  <p>You can revoke the app's access to your Google account at any time by visiting <a href="https://myaccount.google.com/permissions">Google Account Permissions</a>.</p>
+
+  <h2>Open source</h2>
+  <p>The full source code is available at <a href="https://github.com/Sudain-git/google-task-manager-v2">github.com/Sudain-git/google-task-manager-v2</a>. You can verify every claim in this policy by reading the code.</p>
+
+  <h2>Contact</h2>
+  <p>If you have questions about this policy, please open an issue on the <a href="https://github.com/Sudain-git/google-task-manager-v2/issues">GitHub repository</a>.</p>
+</body>
+</html>
