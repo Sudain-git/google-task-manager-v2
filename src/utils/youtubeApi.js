@@ -139,6 +139,52 @@ export async function getPlaylistVideos(playlistId) {
 }
 
 /**
+ * Fetch the authenticated user's YouTube subscriptions
+ * Requires an OAuth access token with youtube.readonly scope
+ * @param {string} accessToken - OAuth access token
+ * @returns {Promise<string[]>} - Alphabetically sorted array of channel title strings
+ */
+export async function getUserSubscriptions(accessToken) {
+  const channels = [];
+  let nextPageToken = null;
+
+  do {
+    const url = new URL(`${YOUTUBE_API_BASE}/subscriptions`);
+    url.searchParams.set('part', 'snippet');
+    url.searchParams.set('mine', 'true');
+    url.searchParams.set('maxResults', '50');
+    url.searchParams.set('order', 'alphabetical');
+    if (nextPageToken) {
+      url.searchParams.set('pageToken', nextPageToken);
+    }
+
+    const response = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error?.message || `Subscriptions API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.items) {
+      for (const item of data.items) {
+        const title = item.snippet?.title;
+        if (title) {
+          channels.push(title);
+        }
+      }
+    }
+
+    nextPageToken = data.nextPageToken;
+  } while (nextPageToken);
+
+  return channels.sort((a, b) => a.localeCompare(b));
+}
+
+/**
  * Batch fetch video metadata for multiple videos
  * YouTube API allows up to 50 video IDs per request
  */

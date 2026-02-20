@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { taskAPI } from '../../utils/taskApi';
+import { googleAuth } from '../../auth/GoogleAuth';
 import FetchingIndicator from '../FetchingIndicator';
-// No need to import youtubeApi here - we'll do dynamic import in the function
 
 function AutoSetNotes() {
   const [taskLists, setTaskLists] = useState([]);
@@ -15,67 +15,13 @@ function AutoSetNotes() {
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [results, setResults] = useState(null);
 
-  // Prioritized channels list
-  const PRIORITIZED_CHANNELS = [
-    'Philip DeFranco',
-    'Mystic Arts',
-    'The Late Show with Stephen Colbert',
-    'Wes Roth',
-    'Timothy Cain',
-    'Gamers Nexus',
-    'Fantasy Grounds Academy',
-    'AdviceWithErin',
-    'LastWeekTonight',
-    'The Diary Of A CEO',
-    'LegalEagle',
-    'Ticker Symbol: YOU',
-    'Hak5',
-    'vlogbrothers',
-    'Zee Bashew',
-    'Lindsey Stirling',
-    'Hank Green',
-    'PoliticsGirl',
-    'Vinh Giang',
-    'Shannon Morse',
-    'In Good Faith with Philip DeFranco',
-    'Veritasium',
-    'Alton Brown',
-    'NOAPOLOGY',
-    'Charisma on Command',
-    'MALINDA',
-    'Alina Gingertail',
-    'City of Fort Collins',
-    'Harp Twins',
-    'Elle Cordova',
-    'The Onion',
-    'Alex Hormozi',
-    'James Butler',
-    'Lauren Jumps',
-    'Brooke Monk',
-    'Orion Taraban',
-    'Simon Sinek',
-    'Taylor Davis',
-    'Esther Perel',
-    'Robert Miles AI Safety',
-    'First We Feast',
-    'Captain Disillusion',
-    'Ryan George',
-    'Matthew Hussey',
-    'Map Crow',
-    'MALINDA - Shorts',
-    'Madelyn Monaghan',
-    'Neuralink',
-    'MonarchsFactory',
-    'Twisted Translations',
-    'Matthew Colville',
-    'LindseyTime',
-    'Healthcare Triage',
-    'CrashCourse',
-    'tangostudent',
-    'OverClocked ReMix: Video Game Music Community',
-    'MythKeeper',
-    'Game Maker\'s Toolkit'
-  ];
+  // Channel management state
+  const [channelText, setChannelText] = useState('');
+  const [isFetchingSubs, setIsFetchingSubs] = useState(false);
+  const [subsFetchError, setSubsFetchError] = useState('');
+
+  // Derive channel list from textarea
+  const channelList = channelText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
   // Load task lists on mount
   useEffect(() => {
@@ -111,7 +57,7 @@ function AutoSetNotes() {
       setAllScannedTasks(allTasks);
 
       console.log('[AutoSetNotes] Scanning for YouTube URLs...');
-      
+
       // Filter for tasks with YouTube URLs (videos and shorts) and empty notes
       const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
       const eligible = allTasks.filter(task => {
@@ -121,7 +67,7 @@ function AutoSetNotes() {
       });
 
       setEligibleTasks(eligible);
-      
+
       console.log(`[AutoSetNotes] Found ${eligible.length} eligible YouTube tasks`);
 
     } catch (error) {
@@ -130,6 +76,52 @@ function AutoSetNotes() {
     } finally {
       setIsFetching(false);
     }
+  }
+
+  async function handleFetchSubscriptions() {
+    try {
+      setIsFetchingSubs(true);
+      setSubsFetchError('');
+
+      // Request YouTube scope via incremental auth
+      const accessToken = await googleAuth.requestYouTubeScope();
+
+      // Fetch subscriptions
+      const { getUserSubscriptions } = await import('../../utils/youtubeApi');
+      const channels = await getUserSubscriptions(accessToken);
+
+      if (channels.length === 0) {
+        setSubsFetchError('No subscriptions found. This can happen with brand accounts or accounts with no subscriptions.');
+      } else {
+        setChannelText(channels.join('\n'));
+        setSubsFetchError('');
+      }
+    } catch (error) {
+      console.error('[AutoSetNotes] Failed to fetch subscriptions:', error);
+      setSubsFetchError(error.message);
+    } finally {
+      setIsFetchingSubs(false);
+    }
+  }
+
+  function handleSaveChannels() {
+    localStorage.setItem('gtm-channel-list', channelText);
+    setSubsFetchError('Channel list saved.');
+  }
+
+  function handleLoadChannels() {
+    const saved = localStorage.getItem('gtm-channel-list');
+    if (saved !== null) {
+      setChannelText(saved);
+      setSubsFetchError('Channel list loaded.');
+    } else {
+      setSubsFetchError('No saved channel list found.');
+    }
+  }
+
+  function handleDeleteChannels() {
+    localStorage.removeItem('gtm-channel-list');
+    setSubsFetchError('Saved channel list deleted.');
   }
 
 async function handleProcessTasks() {
@@ -181,11 +173,11 @@ async function handleProcessTasks() {
           return;
         }
 
-        // Check if channel is in prioritized list (case-insensitive)
-        const isPrioritized = PRIORITIZED_CHANNELS.some(
-          prioritizedChannel => 
-            metadata.channelTitle.toLowerCase().includes(prioritizedChannel.toLowerCase()) ||
-            prioritizedChannel.toLowerCase().includes(metadata.channelTitle.toLowerCase())
+        // Check if channel is in user's channel list (case-insensitive)
+        const isPrioritized = channelList.length > 0 && channelList.some(
+          ch =>
+            metadata.channelTitle.toLowerCase().includes(ch.toLowerCase()) ||
+            ch.toLowerCase().includes(metadata.channelTitle.toLowerCase())
         );
 
         // Format note string
@@ -241,6 +233,7 @@ async function handleProcessTasks() {
     setYoutubeChannels([]);
     setResults(null);
     setProgress({ current: 0, total: 0 });
+    // channelText intentionally NOT cleared
   }
 
   if (loadingLists) {
@@ -285,9 +278,85 @@ async function handleProcessTasks() {
         </div>
       </div>
 
+      {/* Channel Management Section */}
+      <div className="form-section">
+        <h3>Channel List</h3>
+        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0 0 var(--spacing-md) 0' }}>
+          Matching channels get <code>[duration] - [channel] - [title]</code> format.
+          Non-matching channels get <code>[duration] - [title]</code>.
+          Leave empty to skip channel matching entirely.
+        </p>
+
+        <div style={{ display: 'flex', gap: 'var(--spacing-sm)', flexWrap: 'wrap', marginBottom: 'var(--spacing-md)' }}>
+          <button
+            onClick={handleFetchSubscriptions}
+            disabled={isFetchingSubs || isLoading}
+            className="primary"
+            style={{ fontSize: '0.8rem' }}
+          >
+            {isFetchingSubs ? 'Fetching...' : 'Fetch My YouTube Subscriptions'}
+          </button>
+          <button
+            onClick={handleSaveChannels}
+            disabled={isLoading}
+            style={{ fontSize: '0.8rem' }}
+          >
+            Save List
+          </button>
+          <button
+            onClick={handleLoadChannels}
+            disabled={isLoading}
+            style={{ fontSize: '0.8rem' }}
+          >
+            Load Saved
+          </button>
+          <button
+            onClick={handleDeleteChannels}
+            disabled={isLoading}
+            style={{ fontSize: '0.8rem' }}
+          >
+            Delete Saved
+          </button>
+        </div>
+
+        {subsFetchError && (
+          <p style={{
+            fontSize: '0.8rem',
+            color: subsFetchError.includes('saved') || subsFetchError.includes('loaded') || subsFetchError.includes('deleted')
+              ? 'var(--accent-success, #4caf50)'
+              : 'var(--accent-warning, #ff9800)',
+            margin: '0 0 var(--spacing-md) 0'
+          }}>
+            {subsFetchError}
+          </p>
+        )}
+
+        <textarea
+          value={channelText}
+          onChange={(e) => setChannelText(e.target.value)}
+          placeholder="One channel name per line&#10;e.g.&#10;Veritasium&#10;Hank Green&#10;Gamers Nexus"
+          rows={8}
+          style={{
+            width: '100%',
+            fontFamily: 'inherit',
+            fontSize: '0.8rem',
+            padding: 'var(--spacing-sm)',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--border-color)',
+            background: 'var(--bg-primary)',
+            color: 'var(--text-primary)',
+            resize: 'vertical',
+            boxSizing: 'border-box'
+          }}
+        />
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', margin: 'var(--spacing-xs) 0 0 0' }}>
+          {channelList.length} channel{channelList.length !== 1 ? 's' : ''} configured
+        </p>
+      </div>
+
       {/* Fetching Indicator */}
       {isFetching && (
-        <FetchingIndicator 
+        <FetchingIndicator
           message="Scanning Tasks for YouTube URLs..."
           subMessage="Identifying tasks with YouTube videos and empty notes"
         />
@@ -302,65 +371,28 @@ async function handleProcessTasks() {
           borderRadius: 'var(--radius-md)',
           marginBottom: 'var(--spacing-lg)'
         }}>
-          <h3 style={{ 
-            fontSize: '0.875rem', 
+          <h3 style={{
+            fontSize: '0.875rem',
             marginBottom: 'var(--spacing-md)',
             color: 'var(--text-secondary)'
           }}>
-            📺 YouTube Tasks Found
+            YouTube Tasks Found
           </h3>
-          <p style={{ 
-            fontSize: '1.5rem', 
+          <p style={{
+            fontSize: '1.5rem',
             fontWeight: '700',
             color: 'var(--accent-primary)',
             margin: '0 0 var(--spacing-sm) 0'
           }}>
             {eligibleTasks.length} task{eligibleTasks.length !== 1 ? 's' : ''}
           </p>
-          <p style={{ 
-            fontSize: '0.75rem', 
+          <p style={{
+            fontSize: '0.75rem',
             color: 'var(--text-tertiary)',
             margin: 0
           }}>
             Tasks with YouTube URLs and empty notes ready for processing
           </p>
-
-          {/* Prioritized Channels Info - Collapsible */}
-          <details style={{
-            marginTop: 'var(--spacing-md)',
-            paddingTop: 'var(--spacing-md)',
-            borderTop: '1px solid var(--border-color)'
-          }}>
-            <summary style={{
-              cursor: 'pointer',
-              fontSize: '0.75rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              color: 'var(--text-secondary)',
-              marginBottom: 'var(--spacing-sm)',
-              userSelect: 'none',
-              padding: 'var(--spacing-sm)',
-              background: 'var(--bg-primary)',
-              borderRadius: 'var(--radius-sm)',
-              transition: 'background var(--transition-base)',
-              listStyle: 'none'
-            }}>
-              ▸ Prioritized Channels ({PRIORITIZED_CHANNELS.length} channels will include channel name)
-            </summary>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-              gap: 'var(--spacing-xs)',
-              fontSize: '0.75rem',
-              color: 'var(--text-tertiary)',
-              marginTop: 'var(--spacing-md)',
-              paddingLeft: 'var(--spacing-md)'
-            }}>
-              {PRIORITIZED_CHANNELS.map(channel => (
-                <div key={channel}>• {channel}</div>
-              ))}
-            </div>
-          </details>
         </div>
       )}
 
@@ -389,7 +421,7 @@ async function handleProcessTasks() {
             </span>
           </div>
           <div className="progress-bar">
-            <div 
+            <div
               className="progress-fill"
               style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
             />
@@ -442,7 +474,7 @@ async function handleProcessTasks() {
           )}
         </div>
       )}
-      
+
       {/* Actions */}
       <div className="form-actions">
         <button

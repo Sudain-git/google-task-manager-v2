@@ -19,29 +19,32 @@
   <p><strong>Google Task Manager</strong> is an open-source, client-side web application operated by Sudain. This policy describes how the app handles your data.</p>
 
   <h2>What data is accessed</h2>
-  <p>When you sign in with Google, the app requests access to your Google Tasks (scope: <code>auth/tasks</code>). This allows the app to read and write your task lists and tasks. No other Google account data is accessed.</p>
+  <p>When you sign in with Google, the app requests access to your Google Tasks (scope: <code>auth/tasks</code>). This allows the app to read and write your task lists and tasks.</p>
+  <p>Optionally, if you choose to fetch your YouTube subscriptions, the app will request an additional permission (scope: <code>youtube.readonly</code>). This is used only to retrieve your subscription channel names so you can build a channel list for note formatting. The app does not access any other YouTube account data.</p>
 
   <h2>How your data is handled</h2>
   <ul>
     <li>All communication happens directly between your browser and Google's APIs. No data passes through any intermediary server.</li>
     <li>OAuth access tokens are held in memory only and are never written to localStorage, cookies, or any persistent storage. Tokens expire after 1 hour.</li>
-    <li>The app has no server and no database. Nothing is stored, collected, or transmitted beyond your direct interaction with Google's APIs.</li>
+    <li>If you choose to save your channel list, it is stored in your browser's localStorage under the key <code>gtm-channel-list</code>. This is entirely user-initiated and contains only the channel names you configure — no personal identifiers.</li>
+    <li>The app has no server and no database. Nothing is stored, collected, or transmitted beyond your direct interaction with Google's APIs and optional localStorage.</li>
   </ul>
 
   <h2>YouTube Data API</h2>
   <p>The app uses the YouTube Data API (via an API key) to fetch public video metadata such as title, duration, and channel name. No user data is sent to YouTube through this feature.</p>
 
   <h2>Cookies, analytics, and tracking</h2>
-  <p>The app does not use cookies, analytics, tracking pixels, or any form of data collection. There are no third-party scripts beyond the Google Identity Services library used for sign-in.</p>
+  <p>The app does not use cookies, analytics, tracking pixels, or any form of data collection. There are no third-party scripts beyond the Google Identity Services library used for sign-in. The only use of localStorage is an optional, user-initiated channel list that contains no personal identifiers.</p>
 
   <h2>Data retention</h2>
   <p>The app retains no data between sessions. When you close or refresh the page, all in-memory data (including your access token) is discarded. Your tasks remain in your Google account, managed by Google.</p>
+  <p>If you save a channel list to localStorage, it persists in your browser until you explicitly delete it using the "Delete Saved" button or clear your browser data.</p>
 
   <h2>Third-party services</h2>
   <ul>
     <li><strong>Google Identity Services</strong> — used for OAuth sign-in.</li>
     <li><strong>Google Tasks API</strong> — used to read and write your tasks.</li>
-    <li><strong>YouTube Data API</strong> — used to fetch public video metadata.</li>
+    <li><strong>YouTube Data API</strong> — used to fetch public video metadata, and optionally to fetch your subscription list (with your explicit consent).</li>
     <li><strong>GitHub Pages</strong> — hosts the static app files.</li>
   </ul>
 

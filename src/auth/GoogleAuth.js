@@ -31,6 +31,7 @@ class GoogleAuth {
   constructor() {
     this.clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     this.scope = 'https://www.googleapis.com/auth/tasks';
+    this.youtubeScope = 'https://www.googleapis.com/auth/youtube.readonly';
     this.discoveryDocs = ['https://www.googleapis.com/discovery/v1/apis/tasks/v1/rest'];
     
     this.isInitialized = false;
@@ -341,6 +342,55 @@ createTokenClient() {
 
 
 /**
+   * Request incremental YouTube readonly scope via a one-off token client.
+   * Returns a Promise that resolves with the new access token
+   * (which carries both tasks + youtube.readonly scopes).
+   * The main sign-in flow remains unchanged (tasks scope only).
+   */
+  requestYouTubeScope() {
+    if (!window.google?.accounts?.oauth2) {
+      return Promise.reject(new Error('Google Identity Services not loaded'));
+    }
+
+    return new Promise((resolve, reject) => {
+      const ytClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: this.clientId,
+        scope: this.youtubeScope,
+        include_granted_scopes: true,
+        callback: (response) => {
+          if (response.error) {
+            const messages = {
+              'popup_closed_by_user': 'YouTube permission request was cancelled.',
+              'access_denied': 'YouTube access was denied. Your tasks session is unaffected.',
+            };
+            reject(new Error(messages[response.error] || `YouTube auth failed: ${response.error}`));
+            return;
+          }
+
+          // Update shared token state so tasks API keeps working
+          this.accessToken = response.access_token;
+          this.isSignedIn = true;
+
+          const expiresIn = response.expires_in || 3600;
+          this.tokenExpiresAt = Date.now() + (expiresIn * 1000);
+
+          window.gapi.client.setToken({
+            access_token: this.accessToken
+          });
+
+          console.log('[Auth] YouTube scope granted, token updated');
+          resolve(this.accessToken);
+        },
+        error_callback: (err) => {
+          reject(new Error(err?.message || 'YouTube permission popup failed.'));
+        },
+      });
+
+      ytClient.requestAccessToken({ prompt: 'consent' });
+    });
+  }
+
+  /**
    * Refresh token silently
    */
   async refreshToken() {
