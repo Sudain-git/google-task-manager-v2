@@ -352,12 +352,17 @@ createTokenClient() {
       return Promise.reject(new Error('Google Identity Services not loaded'));
     }
 
+    // Snapshot the primary account's tasks token before GIS can overwrite it
+    const savedToken = window.gapi.client.getToken();
+
     return new Promise((resolve, reject) => {
       const ytClient = window.google.accounts.oauth2.initTokenClient({
         client_id: this.clientId,
         scope: this.youtubeScope,
-        include_granted_scopes: true,
         callback: (response) => {
+          // GIS automatically overwrites gapi.client token — restore primary account's token
+          if (savedToken) window.gapi.client.setToken(savedToken);
+
           if (response.error) {
             const messages = {
               'popup_closed_by_user': 'YouTube permission request was cancelled.',
@@ -367,21 +372,11 @@ createTokenClient() {
             return;
           }
 
-          // Update shared token state so tasks API keeps working
-          this.accessToken = response.access_token;
-          this.isSignedIn = true;
-
-          const expiresIn = response.expires_in || 3600;
-          this.tokenExpiresAt = Date.now() + (expiresIn * 1000);
-
-          window.gapi.client.setToken({
-            access_token: this.accessToken
-          });
-
-          console.log('[Auth] YouTube scope granted, token updated');
-          resolve(this.accessToken);
+          console.log('[Auth] YouTube scope granted');
+          resolve(response.access_token);
         },
         error_callback: (err) => {
+          if (savedToken) window.gapi.client.setToken(savedToken);
           reject(new Error(err?.message || 'YouTube permission popup failed.'));
         },
       });
