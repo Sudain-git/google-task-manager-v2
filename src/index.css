@@ -298,14 +298,19 @@ label {
 
 .bulk-dates-filter-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-md);
 }
 
-/* Date range: own row on narrow screens, inline after Sort on wide screens */
+@container (max-width: 900px) {
+  .bulk-dates-filter-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .dev-date-range {
-  grid-column: 1 / -1;
+  grid-column: span 2;
 }
 
 @media (min-width: 900px) {

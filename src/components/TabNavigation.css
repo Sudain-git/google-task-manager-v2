@@ -115,6 +115,7 @@
 
 .form-section {
   margin-bottom: var(--spacing-xl);
+  container-type: inline-size;
 }
 
 .form-section:last-child {

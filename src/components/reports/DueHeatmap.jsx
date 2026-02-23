@@ -296,6 +296,7 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
                           fill="#fff"
                           stroke="#000"
                           strokeWidth={1}
+                          pointerEvents="none"
                         />
                       );
                     })()}
@@ -305,6 +306,7 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
                         cy={MONTH_LABEL_HEIGHT + cell.y * CELL_STEP + CELL_SIZE / 2}
                         r={2}
                         fill="#3b82f6"
+                        pointerEvents="none"
                       />
                     )}
                   </g>

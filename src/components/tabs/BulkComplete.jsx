@@ -585,8 +585,32 @@ function BulkComplete() {
               </select>
             </div>
 
-            {/* Duration Filter */}
+            {/* Sort */}
             <div className="form-group">
+              <label htmlFor="sort">Sort</label>
+              <select
+                id="sort"
+                value={`${sortBy}-${sortDirection}`}
+                onChange={(e) => {
+                  const [newSortBy, newDirection] = e.target.value.split('-');
+                  setSortBy(newSortBy);
+                  setSortDirection(newDirection);
+                }}
+                disabled={isLoading}
+              >
+                <option value="alphabetical-asc">Alphabetical A → Z</option>
+                <option value="alphabetical-desc">Alphabetical Z → A</option>
+                <option value="created-asc">Created Oldest First</option>
+                <option value="created-desc">Created Newest First</option>
+                <option value="duration-asc">Duration Shortest First</option>
+                <option value="duration-desc">Duration Longest First</option>
+                <option value="dueDate-asc">Due Date Earliest First</option>
+                <option value="dueDate-desc">Due Date Latest First</option>
+              </select>
+            </div>
+
+            {/* Duration Filter */}
+            <div className="form-group" style={{ gridColumn: 'span 2' }}>
               <label>Duration</label>
               <div style={{ display: 'flex', gap: 'var(--spacing-xs)', alignItems: 'center' }}>
                 <select
@@ -640,30 +664,6 @@ function BulkComplete() {
                   <option value="hours">Hours</option>
                 </select>
               </div>
-            </div>
-
-            {/* Sort */}
-            <div className="form-group" style={{ gridColumnStart: 1 }}>
-              <label htmlFor="sort">Sort</label>
-              <select
-                id="sort"
-                value={`${sortBy}-${sortDirection}`}
-                onChange={(e) => {
-                  const [newSortBy, newDirection] = e.target.value.split('-');
-                  setSortBy(newSortBy);
-                  setSortDirection(newDirection);
-                }}
-                disabled={isLoading}
-              >
-                <option value="alphabetical-asc">Alphabetical A → Z</option>
-                <option value="alphabetical-desc">Alphabetical Z → A</option>
-                <option value="created-asc">Created Oldest First</option>
-                <option value="created-desc">Created Newest First</option>
-                <option value="duration-asc">Duration Shortest First</option>
-                <option value="duration-desc">Duration Longest First</option>
-                <option value="dueDate-asc">Due Date Earliest First</option>
-                <option value="dueDate-desc">Due Date Latest First</option>
-              </select>
             </div>
 
             {/* Date Range */}
