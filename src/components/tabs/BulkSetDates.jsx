@@ -11,6 +11,7 @@ function BulkSetDates() {
   const [searchText, setSearchText] = useState('');
   const [searchIn, setSearchIn] = useState('title'); // 'title', 'notes', 'both'
   const [hasDueDate, setHasDueDate] = useState('either'); // 'yes', 'no', 'either'
+  const [relationshipFilter, setRelationshipFilter] = useState('any'); // 'any', 'parent', 'child', 'orphan'
   const [durationMode, setDurationMode] = useState('any');
   const [durationValue, setDurationValue] = useState('');
   const [durationValueEnd, setDurationValueEnd] = useState('');
@@ -76,7 +77,7 @@ function BulkSetDates() {
     if (allTasks.length > 0) {
       handleApplyFilters();
     }
-  }, [searchText, searchIn, hasDueDate, durationMode, durationValue, durationValueEnd, durationUnit, dateRangeType, dateRangePreset, dateStart, dateEnd, allTasks]);
+  }, [searchText, searchIn, hasDueDate, relationshipFilter, durationMode, durationValue, durationValueEnd, durationUnit, dateRangeType, dateRangePreset, dateStart, dateEnd, allTasks]);
 
   // Auto-apply sort whenever filtered tasks or sort criteria change
   useEffect(() => {
@@ -189,6 +190,19 @@ const handleApplyFilters = useCallback(() => {
       });
     }
 
+    // Relationship filter
+    if (relationshipFilter !== 'any') {
+      const parentIds = new Set(allTasks.map(t => t.parent).filter(Boolean));
+      filtered = filtered.filter(task => {
+        const isChild = !!task.parent;
+        const isParent = parentIds.has(task.id);
+        if (relationshipFilter === 'parent') return isParent && !isChild;
+        if (relationshipFilter === 'child') return isChild;
+        if (relationshipFilter === 'orphan') return !isChild && !isParent;
+        return true;
+      });
+    }
+
     // Duration filter
     if (durationMode !== 'any' && durationValue !== '') {
       const toSeconds = (val, unit) => {
@@ -242,7 +256,7 @@ const handleApplyFilters = useCallback(() => {
 
     setFilteredTasks(filtered);
     console.log(`[BulkSetDates] Filtered to ${filtered.length} tasks from ${allTasks.length} total`);
-  }, [allTasks, searchText, searchIn, hasDueDate, durationMode, durationValue, durationValueEnd, durationUnit, dateRangeType, dateRangePreset, dateStart, dateEnd]);
+  }, [allTasks, searchText, searchIn, hasDueDate, relationshipFilter, durationMode, durationValue, durationValueEnd, durationUnit, dateRangeType, dateRangePreset, dateStart, dateEnd]);
 
 
   /**
@@ -352,6 +366,7 @@ function handleClear() {
     setSearchText('');
     setSearchIn('title');
     setHasDueDate('either');
+    setRelationshipFilter('any');
     setDurationMode('any');
     setDurationValue('');
     setDurationValueEnd('');
@@ -590,6 +605,22 @@ function handleClear() {
                 <option value="either">Either</option>
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
+              </select>
+            </div>
+
+            {/* Relationship Filter */}
+            <div className="form-group">
+              <label htmlFor="relationship-filter">Relationship</label>
+              <select
+                id="relationship-filter"
+                value={relationshipFilter}
+                onChange={(e) => setRelationshipFilter(e.target.value)}
+                disabled={isLoading}
+              >
+                <option value="any">Any</option>
+                <option value="parent">Parent</option>
+                <option value="child">Child</option>
+                <option value="orphan">Orphan</option>
               </select>
             </div>
 
