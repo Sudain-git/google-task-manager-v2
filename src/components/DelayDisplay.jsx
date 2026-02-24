@@ -5,7 +5,6 @@ import './TokenTimer.css';
 function DelayDisplay() {
   const [delay, setDelay] = useState(0);
   const [flash, setFlash] = useState(null); // 'up' | 'down' | null
-  const [thresholds, setThresholds] = useState(null);
   const prevDelay = useRef(0);
 
   useEffect(() => {
@@ -19,11 +18,8 @@ function DelayDisplay() {
       }
     };
 
-    taskAPI.onThresholdsChange = (data) => setThresholds(data);
-
     return () => {
       taskAPI.onDelayChange = null;
-      taskAPI.onThresholdsChange = null;
     };
   }, []);
 
@@ -37,12 +33,10 @@ function DelayDisplay() {
   if (delay === 0) return null;
 
   let zone = 'good';
-  if (thresholds) {
-    if (delay >= thresholds.average) {
-      zone = 'critical';
-    } else if (delay >= thresholds.sustainable) {
-      zone = 'warning';
-    }
+  if (delay >= 3000) {
+    zone = 'critical';
+  } else if (delay >= 1500) {
+    zone = 'warning';
   }
 
   const flashStyle = flash === 'up'

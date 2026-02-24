@@ -184,6 +184,7 @@ class TaskAPI {
     let sustainableDelay = this.batchDelay;
     const maxConsecutiveErrors = 5;
 
+    try {
     for (let i = 0; i < taskIds.length; i++) {
       const taskId = taskIds[i];
       let retries = 0;
@@ -275,8 +276,9 @@ class TaskAPI {
         await this.delay(currentDelay);
       }
     }
-
-    this._setDelay(0);
+    } finally {
+      this._setDelay(0);
+    }
 
     console.log(`[API] Bulk move ${results.stopped ? 'STOPPED' : 'complete'}: ${results.successful.length} successful, ${results.failed.length} failed`);
 
@@ -309,6 +311,7 @@ class TaskAPI {
     let sustainableDelay = this.batchDelay;
     const maxConsecutiveErrors = 5;
 
+    try {
     for (let i = 0; i < childTaskIds.length; i++) {
       const taskId = childTaskIds[i];
       let retries = 0;
@@ -387,8 +390,9 @@ class TaskAPI {
         await this.delay(currentDelay);
       }
     }
-
-    this._setDelay(0);
+    } finally {
+      this._setDelay(0);
+    }
 
     console.log(`[API] Bulk set parent complete: ${results.successful.length} successful, ${results.failed.length} failed`);
 
@@ -418,6 +422,7 @@ class TaskAPI {
     let sustainableDelay = this.batchDelay;
     const maxConsecutiveErrors = 5;
 
+    try {
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
       let retries = 0;
@@ -500,8 +505,9 @@ class TaskAPI {
         await this.delay(currentDelay);
       }
     }
-
-    this._setDelay(0);
+    } finally {
+      this._setDelay(0);
+    }
 
     console.log(`[API] Bulk insert complete: ${results.successful.length} successful, ${results.failed.length} failed`);
 
@@ -550,22 +556,23 @@ class TaskAPI {
     let sustainableDelay = this.batchDelay;
     const maxConsecutiveErrors = 5;
 
+    try {
     for (let i = 0; i < updates.length; i++) {
       const { taskId, updates: taskUpdates } = updates[i];
-      
+
       // Get current task from our pre-fetched map
       const currentTask = taskMap.get(taskId);
-      
+
       if (!currentTask) {
         console.warn(`[API] Task ${taskId} not found in pre-fetched tasks`);
         results.failed.push({ taskId, error: 'Task not found in list' });
-        
+
         if (stopOnFailure) {
           console.error('[API] Stopping due to task not found');
           results.stopped = true;
           break;
         }
-        
+
         if (onProgress) onProgress(i + 1, updates.length);
         continue;
       }
@@ -588,7 +595,7 @@ class TaskAPI {
             task: taskId,
             resource: mergedTask
           });
-    
+
 
           results.successful.push({ task: response.result });
           success = true;
@@ -671,8 +678,9 @@ class TaskAPI {
         await this.delay(currentDelay);
       }
     }
-
-    this._setDelay(0);
+    } finally {
+      this._setDelay(0);
+    }
 
     console.log(`[API] Bulk update ${results.stopped ? 'STOPPED' : 'complete'}: ${results.successful.length} successful, ${results.failed.length} failed`);
 
