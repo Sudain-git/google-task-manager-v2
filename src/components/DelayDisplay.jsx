@@ -5,6 +5,7 @@ import './TokenTimer.css';
 function DelayDisplay() {
   const [delay, setDelay] = useState(0);
   const [flash, setFlash] = useState(null); // 'up' | 'down' | null
+  const [backingOff, setBackingOff] = useState(false);
   const prevDelay = useRef(0);
 
   useEffect(() => {
@@ -18,8 +19,11 @@ function DelayDisplay() {
       }
     };
 
+    taskAPI.onBackoffChange = (active) => setBackingOff(active);
+
     return () => {
       taskAPI.onDelayChange = null;
+      taskAPI.onBackoffChange = null;
     };
   }, []);
 
@@ -33,7 +37,9 @@ function DelayDisplay() {
   if (delay === 0) return null;
 
   let zone = 'good';
-  if (delay >= 3000) {
+  if (backingOff) {
+    zone = 'warning';
+  } else if (delay >= 3000) {
     zone = 'critical';
   } else if (delay >= 1500) {
     zone = 'warning';

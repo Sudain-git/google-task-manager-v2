@@ -14,6 +14,7 @@ class TaskAPI {
     this.currentDelay = 0;
     this.onDelayChange = null;
     this.onThresholdsChange = null;
+    this.onBackoffChange = null;
   }
 
   /**
@@ -235,7 +236,7 @@ class TaskAPI {
 
             const backoffDelay = Math.min(1000 + 1000 * rateLimitHits, 10000);
             console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
-            await this.delay(backoffDelay);
+            await this._backoffDelay(backoffDelay);
 
           } else {
             retries++;
@@ -359,7 +360,7 @@ class TaskAPI {
 
             const backoffDelay = Math.min(1000 + 1000 * rateLimitHits, 10000);
             console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
-            await this.delay(backoffDelay);
+            await this._backoffDelay(backoffDelay);
 
           } else {
             retries++;
@@ -473,7 +474,7 @@ class TaskAPI {
 
             const backoffDelay = Math.min(1000 + 1000 * rateLimitHits, 10000);
             console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
-            await this.delay(backoffDelay);
+            await this._backoffDelay(backoffDelay);
 
           } else {
             retries++;
@@ -637,7 +638,7 @@ class TaskAPI {
 
             const backoffDelay = Math.min(1000 + 1000 * rateLimitHits, 10000);
             console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
-            await this.delay(backoffDelay);
+            await this._backoffDelay(backoffDelay);
 
           } else {
             retries++;
@@ -737,6 +738,18 @@ class TaskAPI {
    */
   delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Backoff delay — signals the UI to show warning color while waiting
+   */
+  async _backoffDelay(ms) {
+    this.onBackoffChange?.(true);
+    try {
+      await this.delay(ms);
+    } finally {
+      this.onBackoffChange?.(false);
+    }
   }
 
   /**
