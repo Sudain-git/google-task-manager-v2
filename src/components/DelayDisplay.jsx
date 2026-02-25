@@ -37,11 +37,9 @@ function DelayDisplay() {
   if (delay === 0) return null;
 
   let zone = 'good';
-  if (backingOff) {
-    zone = 'warning';
-  } else if (delay >= 3000) {
+  if (delay >= 3000) {
     zone = 'critical';
-  } else if (delay >= 1500) {
+  } else if (backingOff || delay >= 1500) {
     zone = 'warning';
   }
 
