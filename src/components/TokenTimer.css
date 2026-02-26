@@ -83,6 +83,13 @@
   100% { background: rgba(56, 161, 105, 0.1); }
 }
 
+.token-timer.cancelling {
+  background: var(--accent-error);
+  border-color: var(--accent-error);
+  color: #fff;
+  animation: pulse 0.6s ease-in-out infinite;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .token-timer {

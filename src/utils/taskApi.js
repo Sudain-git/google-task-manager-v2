@@ -12,9 +12,20 @@ class TaskAPI {
     this.batchDelay = 100; // Base delay between API calls in ms
     this.maxRetries = 6;
     this.currentDelay = 0;
+    this.cancelRequested = false;
     this.onDelayChange = null;
     this.onThresholdsChange = null;
     this.onBackoffChange = null;
+    this.onOperationChange = null;
+  }
+
+  cancelOperation() {
+    this.cancelRequested = true;
+    console.log('[API] Cancel requested by user');
+  }
+
+  _setOperationActive(active) {
+    this.onOperationChange?.(active);
   }
 
   /**
@@ -185,14 +196,23 @@ class TaskAPI {
     let sustainableDelay = this.batchDelay;
     const maxConsecutiveErrors = 5;
 
+    this.cancelRequested = false;
+    this._setOperationActive(true);
+
     try {
     for (let i = 0; i < taskIds.length; i++) {
+      if (this.cancelRequested) {
+        results.stopped = true;
+        break;
+      }
+
       const taskId = taskIds[i];
       let retries = 0;
       let success = false;
       let lastError = null;
 
       while (!success) {
+        if (this.cancelRequested) break;
         try {
           const result = await this.moveTask(sourceListId, taskId, null, null, destinationListId);
 
@@ -279,6 +299,7 @@ class TaskAPI {
     }
     } finally {
       this._setDelay(0);
+      this._setOperationActive(false);
     }
 
     console.log(`[API] Bulk move ${results.stopped ? 'STOPPED' : 'complete'}: ${results.successful.length} successful, ${results.failed.length} failed`);
@@ -286,7 +307,7 @@ class TaskAPI {
     return results;
   }
 
-/**
+  /**
    * Bulk set/remove parent for tasks with rate limiting and retry logic
    * @param {string} taskListId - The task list ID
    * @param {Array} childTaskIds - Array of child task IDs
@@ -312,13 +333,22 @@ class TaskAPI {
     let sustainableDelay = this.batchDelay;
     const maxConsecutiveErrors = 5;
 
+    this.cancelRequested = false;
+    this._setOperationActive(true);
+
     try {
     for (let i = 0; i < childTaskIds.length; i++) {
+      if (this.cancelRequested) {
+        results.stopped = true;
+        break;
+      }
+
       const taskId = childTaskIds[i];
       let retries = 0;
       let success = false;
 
       while (!success) {
+        if (this.cancelRequested) break;
         try {
           const result = await this.moveTask(taskListId, taskId, parentId);
 
@@ -393,6 +423,7 @@ class TaskAPI {
     }
     } finally {
       this._setDelay(0);
+      this._setOperationActive(false);
     }
 
     console.log(`[API] Bulk set parent complete: ${results.successful.length} successful, ${results.failed.length} failed`);
@@ -423,14 +454,22 @@ class TaskAPI {
     let sustainableDelay = this.batchDelay;
     const maxConsecutiveErrors = 5;
 
+    this.cancelRequested = false;
+    this._setOperationActive(true);
+
     try {
     for (let i = 0; i < tasks.length; i++) {
+      if (this.cancelRequested) {
+        break;
+      }
+
       const task = tasks[i];
       let retries = 0;
       let success = false;
       let lastError = null;
 
       while (!success) {
+        if (this.cancelRequested) break;
         try {
           const result = await this.insertTask(taskListId, task);
 
@@ -508,6 +547,7 @@ class TaskAPI {
     }
     } finally {
       this._setDelay(0);
+      this._setOperationActive(false);
     }
 
     console.log(`[API] Bulk insert complete: ${results.successful.length} successful, ${results.failed.length} failed`);
@@ -557,8 +597,16 @@ class TaskAPI {
     let sustainableDelay = this.batchDelay;
     const maxConsecutiveErrors = 5;
 
+    this.cancelRequested = false;
+    this._setOperationActive(true);
+
     try {
     for (let i = 0; i < updates.length; i++) {
+      if (this.cancelRequested) {
+        results.stopped = true;
+        break;
+      }
+
       const { taskId, updates: taskUpdates } = updates[i];
 
       // Get current task from our pre-fetched map
@@ -589,6 +637,7 @@ class TaskAPI {
       let lastError = null;
 
       while (!success) {
+        if (this.cancelRequested) break;
         try {
           // Update with merged task object
           const response = await window.gapi.client.tasks.tasks.update({
@@ -681,6 +730,7 @@ class TaskAPI {
     }
     } finally {
       this._setDelay(0);
+      this._setOperationActive(false);
     }
 
     console.log(`[API] Bulk update ${results.stopped ? 'STOPPED' : 'complete'}: ${results.successful.length} successful, ${results.failed.length} failed`);
@@ -746,7 +796,11 @@ class TaskAPI {
   async _backoffDelay(ms) {
     this.onBackoffChange?.(true);
     try {
-      await this.delay(ms);
+      const end = Date.now() + ms;
+      while (Date.now() < end) {
+        if (this.cancelRequested) break;
+        await this.delay(Math.min(100, end - Date.now()));
+      }
     } finally {
       this.onBackoffChange?.(false);
     }
