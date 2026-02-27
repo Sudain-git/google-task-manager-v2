@@ -191,10 +191,8 @@ class TaskAPI {
     console.log(`[API] Starting bulk move of ${taskIds.length} tasks with ${currentDelay}ms delay and ${maxRetries} max retries`);
     console.log(`[API] Stop on failure: ${stopOnFailure}`);
 
-    let consecutiveErrors = 0;
     let rateLimitHits = 0;
     let sustainableDelay = this.batchDelay;
-    const maxConsecutiveErrors = 5;
 
     this.cancelRequested = false;
     this._setOperationActive(true);
@@ -218,7 +216,6 @@ class TaskAPI {
 
           results.successful.push({ taskId, result });
           success = true;
-          consecutiveErrors = 0;
           if (rateLimitHits > 0) rateLimitHits--;
 
           // Gradually speed up if no errors
@@ -230,7 +227,6 @@ class TaskAPI {
         } catch (error) {
 
           lastError = error;
-          consecutiveErrors++;
 
           const errorMsg = error.message || error.result?.error?.message || error.toString() || '';
 
@@ -250,13 +246,11 @@ class TaskAPI {
             }
             console.warn(`[API] Rate limit on task ${i + 1}/${taskIds.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
 
-
+            // currentDelay doubles on each 403 hit. Wait the doubled delay before retrying,
+            // then the inter-task gap fires again after success — intentionally conservative.
             currentDelay = Math.min(Math.ceil(currentDelay * 2), 90000);
             this._setDelay(currentDelay);
-
-            const backoffDelay = Math.min(30000 + 30000 * rateLimitHits, 300000);
-            console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
-            await this._backoffDelay(backoffDelay);
+            await this.delay(currentDelay);
 
           } else {
             retries++;
@@ -274,12 +268,6 @@ class TaskAPI {
               }
               break;
             }
-          }
-
-          if (consecutiveErrors >= maxConsecutiveErrors) {
-            console.warn(`[API] ${consecutiveErrors} consecutive errors, pausing for 60 seconds...`);
-            await this.delay(60000);
-            consecutiveErrors = 0;
           }
         }
       }
@@ -328,10 +316,8 @@ class TaskAPI {
     console.log(`[API] Starting bulk set parent of ${childTaskIds.length} tasks with ${currentDelay}ms delay and ${maxRetries} max retries`);
     console.log(`[API] Parent ID: ${parentId || '(orphan)'}`);
 
-    let consecutiveErrors = 0;
     let rateLimitHits = 0;
     let sustainableDelay = this.batchDelay;
-    const maxConsecutiveErrors = 5;
 
     this.cancelRequested = false;
     this._setOperationActive(true);
@@ -354,7 +340,6 @@ class TaskAPI {
 
           results.successful.push({ taskId, result });
           success = true;
-          consecutiveErrors = 0;
           if (rateLimitHits > 0) rateLimitHits--;
 
           // Gradually speed up if no errors
@@ -364,8 +349,6 @@ class TaskAPI {
           }
 
         } catch (error) {
-
-          consecutiveErrors++;
 
           const errorMsg = error.message || error.result?.error?.message || error.toString() || '';
 
@@ -385,12 +368,11 @@ class TaskAPI {
             }
             console.warn(`[API] Rate limit on task ${i + 1}/${childTaskIds.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
 
+            // currentDelay doubles on each 403 hit. Wait the doubled delay before retrying,
+            // then the inter-task gap fires again after success — intentionally conservative.
             currentDelay = Math.min(Math.ceil(currentDelay * 2), 90000);
             this._setDelay(currentDelay);
-
-            const backoffDelay = Math.min(30000 + 30000 * rateLimitHits, 300000);
-            console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
-            await this._backoffDelay(backoffDelay);
+            await this.delay(currentDelay);
 
           } else {
             retries++;
@@ -403,12 +385,6 @@ class TaskAPI {
               console.error(`[API] Failed to set parent for task after ${retries} attempts:`, taskId);
               break;
             }
-          }
-
-          if (consecutiveErrors >= maxConsecutiveErrors) {
-            console.warn(`[API] ${consecutiveErrors} consecutive errors, pausing for 60 seconds...`);
-            await this.delay(60000);
-            consecutiveErrors = 0;
           }
         }
       }
@@ -449,10 +425,8 @@ class TaskAPI {
 
     console.log(`[API] Starting bulk insert of ${tasks.length} tasks with ${currentDelay}ms delay and ${maxRetries} max retries`);
 
-    let consecutiveErrors = 0;
     let rateLimitHits = 0;
     let sustainableDelay = this.batchDelay;
-    const maxConsecutiveErrors = 5;
 
     this.cancelRequested = false;
     this._setOperationActive(true);
@@ -475,7 +449,6 @@ class TaskAPI {
 
           results.successful.push({ task: result, original: task });
           success = true;
-          consecutiveErrors = 0;
           if (rateLimitHits > 0) rateLimitHits--;
 
           // Gradually speed up if no errors
@@ -487,7 +460,6 @@ class TaskAPI {
         } catch (error) {
 
           lastError = error;
-          consecutiveErrors++;
 
           const errorMsg = error.message || error.toString() || '';
 
@@ -507,13 +479,11 @@ class TaskAPI {
             }
             console.warn(`[API] Rate limit on task ${i + 1}/${tasks.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
 
-
+            // currentDelay doubles on each 403 hit. Wait the doubled delay before retrying,
+            // then the inter-task gap fires again after success — intentionally conservative.
             currentDelay = Math.min(Math.ceil(currentDelay * 2), 90000);
             this._setDelay(currentDelay);
-
-            const backoffDelay = Math.min(30000 + 30000 * rateLimitHits, 300000);
-            console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
-            await this._backoffDelay(backoffDelay);
+            await this.delay(currentDelay);
 
           } else {
             retries++;
@@ -525,12 +495,6 @@ class TaskAPI {
               console.error(`[API] Failed to insert task after ${retries} attempts:`, task.title);
               break;
             }
-          }
-
-          if (consecutiveErrors >= maxConsecutiveErrors) {
-            console.warn(`[API] ${consecutiveErrors} consecutive errors, pausing for 60 seconds...`);
-            await this.delay(60000);
-            consecutiveErrors = 0;
           }
         }
       }
@@ -592,10 +556,8 @@ class TaskAPI {
     console.log(`[API] Starting bulk update of ${updates.length} tasks with ${currentDelay}ms delay and ${maxRetries} max retries`);
     console.log(`[API] Stop on failure: ${stopOnFailure}`);
 
-    let consecutiveErrors = 0;
     let rateLimitHits = 0;
     let sustainableDelay = this.batchDelay;
-    const maxConsecutiveErrors = 5;
 
     this.cancelRequested = false;
     this._setOperationActive(true);
@@ -649,7 +611,6 @@ class TaskAPI {
 
           results.successful.push({ task: response.result });
           success = true;
-          consecutiveErrors = 0;
           if (rateLimitHits > 0) rateLimitHits--;
 
           // Gradually speed up if no errors
@@ -661,7 +622,6 @@ class TaskAPI {
         } catch (error) {
 
           lastError = error;
-          consecutiveErrors++;
 
           const errorMsg = error.message || error.result?.error?.message || error.toString() || '';
 
@@ -681,13 +641,11 @@ class TaskAPI {
             }
             console.warn(`[API] Rate limit on task ${i + 1}/${updates.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
 
-
+            // currentDelay doubles on each 403 hit. Wait the doubled delay before retrying,
+            // then the inter-task gap fires again after success — intentionally conservative.
             currentDelay = Math.min(Math.ceil(currentDelay * 2), 90000);
             this._setDelay(currentDelay);
-
-            const backoffDelay = Math.min(30000 + 30000 * rateLimitHits, 300000);
-            console.log(`[API] Backing off for ${backoffDelay}ms before retry...`);
-            await this._backoffDelay(backoffDelay);
+            await this.delay(currentDelay);
 
           } else {
             retries++;
@@ -705,12 +663,6 @@ class TaskAPI {
               }
               break;
             }
-          }
-
-          if (consecutiveErrors >= maxConsecutiveErrors) {
-            console.warn(`[API] ${consecutiveErrors} consecutive errors, pausing for 60 seconds...`);
-            await this.delay(60000);
-            consecutiveErrors = 0;
           }
         }
       }
