@@ -10,6 +10,7 @@ function DelayDisplay() {
   const [cancelling, setCancelling] = useState(false);
   const [hovered, setHovered] = useState(false);
   const prevDelay = useRef(0);
+  const hoverTimerRef = useRef(null);
 
   useEffect(() => {
     taskAPI.onDelayChange = (newDelay) => {
@@ -45,12 +46,10 @@ function DelayDisplay() {
     return () => clearTimeout(id);
   }, [flash]);
 
-  if (delay === 0) return null;
-
   let zone = 'good';
-  if (delay >= 3000) {
+  if (delay >= 90000) {
     zone = 'critical';
-  } else if (backingOff || delay >= 1500) {
+  } else if (backingOff || delay >= 45000) {
     zone = 'warning';
   }
 
@@ -66,17 +65,28 @@ function DelayDisplay() {
     ? () => { taskAPI.cancelOperation(); setCancelling(true); }
     : undefined;
 
+  const handleMouseEnter = () => {
+    if (cancelling || !operationActive) return;
+    hoverTimerRef.current = setTimeout(() => setHovered(true), 150);
+  };
+  const handleMouseLeave = () => {
+    clearTimeout(hoverTimerRef.current);
+    setHovered(false);
+  };
+
+  if (!operationActive) return null;
+
   return (
     <div
       className={`token-timer ${zone}${cancelling ? ' cancelling' : ''}`}
       style={flashStyle}
       onClick={handleClick}
-      onMouseEnter={operationActive && !cancelling ? () => setHovered(true) : undefined}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {cancelling ? (
         <span className="timer-label">Cancelling…</span>
-      ) : hovered && operationActive ? (
+      ) : hovered ? (
         <span className="timer-label">Cancel Operation</span>
       ) : (
         <>

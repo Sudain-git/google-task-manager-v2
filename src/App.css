@@ -216,6 +216,8 @@
   padding: var(--spacing-sm) var(--spacing-md);
   font-size: 0.75rem;
   border-radius: var(--radius-sm);
+  line-height: 1;
+  min-height: calc(1rem + var(--spacing-sm));
 }
 
 /* App Main */
