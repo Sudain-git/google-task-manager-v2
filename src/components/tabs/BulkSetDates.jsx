@@ -1228,7 +1228,7 @@ function handleClear() {
                 value={frequency === 'same' || frequency === 'clear' ? 0 : intervalAmount}
                 onChange={(e) => setIntervalAmount(Math.max(1, parseInt(e.target.value) || 1))}
                 disabled={isLoading || frequency === 'same' || frequency === 'clear'}
-                style={{ width: '60px' }}
+                style={{ width: '72px' }}
               />
             </div>
 
