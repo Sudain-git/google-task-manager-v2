@@ -8,6 +8,7 @@ import TaskTimelineChart from '../reports/TaskTimelineChart';
 import UpdatedHeatmap from '../reports/UpdatedHeatmap';
 import DueTimelineChart from '../reports/DueTimelineChart';
 import DueHeatmap from '../reports/DueHeatmap';
+import VideoDurationChart from '../reports/VideoDurationChart';
 
 function Reports() {
   const [taskLists, setTaskLists] = useState([]);
@@ -56,8 +57,7 @@ function Reports() {
     return filteredTasks.filter(t => {
       const val = t[dateFilterField];
       if (!val) return false;
-      const parsed = new Date(val);
-      const d = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+      const d = val.slice(0, 10);
       if (dateStart && d < dateStart) return false;
       if (effectiveEnd && d > effectiveEnd) return false;
       return true;
@@ -436,6 +436,7 @@ function Reports() {
                   <option value="heatmap">Updated Heatmap</option>
                   <option value="dueTimeline">Due Date Timeline</option>
                   <option value="dueHeatmap">Due Date Heatmap</option>
+                  <option value="videoDuration">Video Duration</option>
                 </select>
               </div>
               <div className="form-group" style={{ flex: 1, minWidth: '150px', marginBottom: 0 }}>
@@ -479,6 +480,19 @@ function Reports() {
                 onDateClick={(d) => handleHeatmapDateClick(d, 'due')}
                 dateStart={dateFilterField === 'due' ? dateStart : ''}
                 dateEnd={dateFilterField === 'due' ? dateEnd : ''}
+              />
+            )}
+            {selectedReport === 'videoDuration' && (
+              <VideoDurationChart
+                tasks={filteredTasks}
+                onTaskSelect={(ids) => {
+                  setDateStart('');
+                  setDateEnd('');
+                  setClickCount(0);
+                  setTaskIdFilter(new Set(ids));
+                  setSelectedTaskIds(new Set(ids));
+                }}
+                onDateClick={(d) => handleHeatmapDateClick(d, 'due')}
               />
             )}
           </details>
@@ -561,6 +575,11 @@ function Reports() {
                           <div style={{ cursor: 'pointer' }} onClick={() => toggleTask(task.id)}>
                             {task.title}
                           </div>
+                          {task.notes && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '2px', whiteSpace: 'pre-line' }}>
+                              {task.notes}
+                            </div>
+                          )}
                           {(task.parent && taskById[task.parent] || childrenOf[task.id]) && (
                             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
                               {task.parent && taskById[task.parent] && (
