@@ -1,8 +1,13 @@
 import { useState, useMemo } from 'react';
 
+function localDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function TaskTimelineChart({ tasks }) {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [rangeMode, setRangeMode] = useState('full');
 
   const dateRange = useMemo(() => {
     if (!tasks || tasks.length === 0) return { min: '', max: '' };
@@ -40,6 +45,41 @@ function TaskTimelineChart({ tasks }) {
     }
     return points;
   }, [tasks, effectiveStart, effectiveEnd]);
+
+  function handleRangeChange(mode) {
+    setRangeMode(mode);
+    if (mode === 'full') {
+      setStartDate('');
+      setEndDate('');
+    } else if (mode === '14d') {
+      const today = new Date();
+      const from = new Date(today);
+      from.setDate(from.getDate() - 7);
+      const to = new Date(today);
+      to.setDate(to.getDate() + 7);
+      setStartDate(localDateStr(from));
+      setEndDate(localDateStr(to));
+    } else if (mode === '60d') {
+      const today = new Date();
+      const from = new Date(today);
+      from.setDate(from.getDate() - 30);
+      const to = new Date(today);
+      to.setDate(to.getDate() + 30);
+      setStartDate(localDateStr(from));
+      setEndDate(localDateStr(to));
+    }
+    // 'custom' → no-op
+  }
+
+  function handleStartChange(val) {
+    setStartDate(val);
+    setRangeMode('custom');
+  }
+
+  function handleEndChange(val) {
+    setEndDate(val);
+    setRangeMode('custom');
+  }
 
   if (!tasks || tasks.length === 0) {
     return (
@@ -86,7 +126,7 @@ function TaskTimelineChart({ tasks }) {
               id="timeline-start"
               type="date"
               value={effectiveStart}
-              onChange={e => setStartDate(e.target.value)}
+              onChange={e => handleStartChange(e.target.value)}
             />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -95,8 +135,21 @@ function TaskTimelineChart({ tasks }) {
               id="timeline-end"
               type="date"
               value={effectiveEnd}
-              onChange={e => setEndDate(e.target.value)}
+              onChange={e => handleEndChange(e.target.value)}
             />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label htmlFor="task-timeline-range">Range</label>
+            <select
+              id="task-timeline-range"
+              value={rangeMode}
+              onChange={e => handleRangeChange(e.target.value)}
+            >
+              <option value="full">Full Range</option>
+              <option value="14d">+/- 7 days</option>
+              <option value="60d">+/- 30 days</option>
+              <option value="custom">Custom</option>
+            </select>
           </div>
           <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', paddingBottom: '6px' }}>
             {totalInRange} task{totalInRange !== 1 ? 's' : ''} in range
