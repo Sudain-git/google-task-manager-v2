@@ -57,7 +57,9 @@ function Reports() {
     return filteredTasks.filter(t => {
       const val = t[dateFilterField];
       if (!val) return false;
-      const d = val.slice(0, 10);
+      const parsed = new Date(val);
+      const d = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+
       if (dateStart && d < dateStart) return false;
       if (effectiveEnd && d > effectiveEnd) return false;
       return true;

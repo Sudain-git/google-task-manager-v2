@@ -106,6 +106,17 @@ function VideoDurationChart({ tasks, onTaskSelect, onDateClick }) {
     } else if (mode === 'past') {
       setStartDate('');
       setEndDate(localDateStr(new Date()));
+    } else if (mode === 'eoy') {
+      const today = new Date();
+      const eoy = new Date(today.getFullYear(), 11, 31);
+      setStartDate(localDateStr(today));
+      setEndDate(localDateStr(eoy));
+    } else if (mode === '6mo') {
+      const today = new Date();
+      const sixMo = new Date(today);
+      sixMo.setMonth(sixMo.getMonth() + 6);
+      setStartDate(localDateStr(today));
+      setEndDate(localDateStr(sixMo));
     }
     // 'custom' → no-op
   }
@@ -133,7 +144,7 @@ function VideoDurationChart({ tasks, onTaskSelect, onDateClick }) {
   const totalMin = Math.round(totalSec / 60);
 
   // Chart dimensions
-  const padding = { top: 20, right: 20, bottom: 50, left: 55 };
+  const padding = { top: 20, right: 50, bottom: 50, left: 55 };
   const width = 900;
   const height = 300;
   const chartW = width - padding.left - padding.right;
@@ -158,10 +169,10 @@ function VideoDurationChart({ tasks, onTaskSelect, onDateClick }) {
     return null;
   }, [target, dataPoints]);
 
-  const yTicks = [];
-  for (let i = 0; i <= 5; i++) {
-    yTicks.push(Math.round((maxMin / 5) * i));
-  }
+  const axisMax = Math.max(1, Math.ceil(maxMin));
+  const numTicks = Math.min(axisMax + 1, 6);
+  const tickStep = numTicks > 1 ? axisMax / (numTicks - 1) : 1;
+  const yTicks = Array.from({ length: numTicks }, (_, i) => Math.round(tickStep * i));
 
   const xLabelInterval = Math.max(1, Math.floor(numDays / 10));
 
@@ -195,9 +206,11 @@ function VideoDurationChart({ tasks, onTaskSelect, onDateClick }) {
               onChange={e => handleRangeChange(e.target.value)}
             >
               <option value="full">Full Range</option>
+              <option value="past">Past</option>
               <option value="14d">+/- 7 days</option>
               <option value="60d">+/- 30 days</option>
-              <option value="past">Past</option>
+              <option value="6mo">Today → 6 Months</option>
+              <option value="eoy">Today → End of Year</option>
               <option value="custom">Custom</option>
             </select>
           </div>
@@ -221,13 +234,16 @@ function VideoDurationChart({ tasks, onTaskSelect, onDateClick }) {
       </div>
 
       <div className="card">
-        <svg
+        {totalVideos === 0 && dataPoints.length > 0 ? (
+          <p style={{ color: 'var(--text-secondary)', margin: 0 }}>No videos in this date range.</p>
+        ) : (
+        <><svg
           viewBox={`0 0 ${width} ${height}`}
           style={{ width: '100%', height: 'auto', display: 'block', marginBottom: '8px' }}
         >
           {/* Grid lines */}
           {yTicks.map(tick => {
-            const y = padding.top + chartH - (tick / maxMin) * chartH;
+            const y = padding.top + chartH - (tick / axisMax) * chartH;
             return (
               <line
                 key={`grid-${tick}`}
@@ -243,7 +259,7 @@ function VideoDurationChart({ tasks, onTaskSelect, onDateClick }) {
 
           {/* Y-axis labels */}
           {yTicks.map(tick => {
-            const y = padding.top + chartH - (tick / maxMin) * chartH;
+            const y = padding.top + chartH - (tick / axisMax) * chartH;
             return (
               <text
                 key={`y-${tick}`}
@@ -267,7 +283,7 @@ function VideoDurationChart({ tasks, onTaskSelect, onDateClick }) {
             const stack = [];
             let cY = padding.top + chartH;
             for (const v of p.videos) {
-              const barH = Math.max(8, (v.durationSec / 60 / maxMin) * chartH);
+              const barH = Math.max(8, (v.durationSec / 60 / axisMax) * chartH);
               cY -= barH;
               stack.push({ v, barH, y: cY });
             }
@@ -284,7 +300,7 @@ function VideoDurationChart({ tasks, onTaskSelect, onDateClick }) {
                     width={barWidth}
                     height={seg.barH}
                     fill={durationColor(seg.v.durationSec)}
-                    stroke={numDays <= 365 ? 'white' : 'none'}
+                    stroke={numDays <= 90 ? 'white' : 'none'}
                     strokeWidth="1.5"
                     style={{ cursor: onTaskSelect ? 'pointer' : 'default' }}
                     onClick={e => { e.stopPropagation(); onTaskSelect && onTaskSelect([seg.v.id]); }}
@@ -329,8 +345,8 @@ function VideoDurationChart({ tasks, onTaskSelect, onDateClick }) {
           })}
 
           {/* Target line */}
-          {targetMin != null && targetMin <= maxMin && (() => {
-            const y = padding.top + chartH - (targetMin / maxMin) * chartH;
+          {targetMin != null && targetMin <= axisMax && (() => {
+            const y = padding.top + chartH - (targetMin / axisMax) * chartH;
             const label = Number.isInteger(targetMin) ? `${targetMin}` : targetMin.toFixed(1);
             return (
               <>
@@ -344,9 +360,9 @@ function VideoDurationChart({ tasks, onTaskSelect, onDateClick }) {
                   strokeDasharray="6,4"
                 />
                 <text
-                  x={padding.left + chartW - 4}
+                  x={padding.left + chartW + 4}
                   y={y - 3}
-                  textAnchor="end"
+                  textAnchor="start"
                   fontSize="10"
                   fill="#e53e3e"
                 >
@@ -404,6 +420,8 @@ function VideoDurationChart({ tasks, onTaskSelect, onDateClick }) {
             );
           })}
         </div>
+        </>
+        )}
       </div>
     </div>
   );
