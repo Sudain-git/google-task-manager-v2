@@ -12,12 +12,14 @@ const STOP_WORDS = new Set([
   'than', 'them', 'then', 'into', 'just', 'about', 'would', 'your',
 ]);
 
-export default function WordCloud({ tasks }) {
+export default function WordCloud({ tasks, onWordSelect }) {
   const [wordSource, setWordSource] = useState('title');
   const [layout, setLayout] = useState('spiral');
   const [urlMode, setUrlMode] = useState(false);
   const [excludeText, setExcludeText] = useState('');
+  const [mode, setMode] = useState('exclude');
   const [wordData, setWordData] = useState([]);
+  const [wordToTaskIds, setWordToTaskIds] = useState(new Map());
   const cloudRef = useRef(null);
   const [cloudSize, setCloudSize] = useState({ width: 0, height: 0 });
 
@@ -25,10 +27,12 @@ export default function WordCloud({ tasks }) {
   useEffect(() => {
     if (tasks.length === 0) {
       setWordData([]);
+      setWordToTaskIds(new Map());
       return;
     }
 
     const freq = new Map();
+    const taskIdMap = new Map(); // word -> Set of task IDs
 
     for (const task of tasks) {
       let raw = '';
@@ -43,7 +47,11 @@ export default function WordCloud({ tasks }) {
           try {
             let hostname = new URL(url).hostname.toLowerCase();
             if (hostname.startsWith('www.')) hostname = hostname.slice(4);
-            if (hostname) freq.set(hostname, (freq.get(hostname) || 0) + 1);
+            if (hostname) {
+              freq.set(hostname, (freq.get(hostname) || 0) + 1);
+              if (!taskIdMap.has(hostname)) taskIdMap.set(hostname, new Set());
+              taskIdMap.get(hostname).add(task.id);
+            }
           } catch { /* skip malformed URLs */ }
         }
         raw = raw.replace(/https?:\/\/[^\s]+/gi, '');
@@ -57,6 +65,8 @@ export default function WordCloud({ tasks }) {
 
       for (const w of words) {
         freq.set(w, (freq.get(w) || 0) + 1);
+        if (!taskIdMap.has(w)) taskIdMap.set(w, new Set());
+        taskIdMap.get(w).add(task.id);
       }
     }
 
@@ -66,6 +76,7 @@ export default function WordCloud({ tasks }) {
       .slice(0, 80);
 
     setWordData(sorted);
+    setWordToTaskIds(new Map([...taskIdMap.entries()].map(([k, v]) => [k, [...v]])));
   }, [tasks, wordSource, urlMode]);
 
   // Measure cloud container when wordData or layout changes
@@ -100,7 +111,7 @@ export default function WordCloud({ tasks }) {
 
   return (
     <>
-      <div className="form-row" style={{ marginBottom: 'var(--spacing-sm)' }}>
+      <div className="form-row" style={{ marginBottom: 'var(--spacing-sm)', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
         <div className="form-group">
           <label htmlFor="word-source">Word Source</label>
           <select
@@ -135,6 +146,17 @@ export default function WordCloud({ tasks }) {
             <option value="on">On</option>
           </select>
         </div>
+        <div className="form-group">
+          <label htmlFor="click-mode">Click Mode</label>
+          <select
+            id="click-mode"
+            value={mode}
+            onChange={e => setMode(e.target.value)}
+          >
+            <option value="exclude">Exclude</option>
+            <option value="select">Select</option>
+          </select>
+        </div>
       </div>
 
       {wordData.length > 0 && (
@@ -145,11 +167,16 @@ export default function WordCloud({ tasks }) {
                 key={w.text}
                 title={`${w.text}: ${w.count} occurrence${w.count !== 1 ? 's' : ''}`}
                 onClick={() => {
-                  setExcludeText(prev => {
-                    const parts = prev.split(',').map(s => s.trim()).filter(Boolean);
-                    if (parts.includes(w.text)) return prev;
-                    return [...parts, w.text].join(', ');
-                  });
+                  if (mode === 'exclude') {
+                    setExcludeText(prev => {
+                      const parts = prev.split(',').map(s => s.trim()).filter(Boolean);
+                      if (parts.includes(w.text)) return prev;
+                      return [...parts, w.text].join(', ');
+                    });
+                  } else {
+                    const ids = wordToTaskIds.get(w.text.toLowerCase()) ?? [];
+                    onWordSelect?.(ids, w.text.toLowerCase());
+                  }
                 }}
                 style={{
                   position: 'absolute',

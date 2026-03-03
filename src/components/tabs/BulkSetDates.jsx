@@ -2,13 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { taskAPI } from '../../utils/taskApi';
 import FetchingIndicator from '../FetchingIndicator';
 
-function BulkSetDates() {
+function BulkSetDates({ initialTaskIds, initialSearchTerm, initialListId }) {
   const [taskLists, setTaskLists] = useState([]);
-  const [selectedList, setSelectedList] = useState('');
+  const [selectedList, setSelectedList] = useState(initialListId ?? '');
   const [loadingLists, setLoadingLists] = useState(true);
-  
+
   // Filter states
-  const [searchText, setSearchText] = useState('');
+  const [searchText, setSearchText] = useState(initialSearchTerm ?? '');
   const [searchIn, setSearchIn] = useState('title'); // 'title', 'notes', 'both'
   const [hasDueDate, setHasDueDate] = useState('either'); // 'yes', 'no', 'either'
   const [relationshipFilter, setRelationshipFilter] = useState('any'); // 'any', 'parent', 'child', 'orphan'
@@ -25,7 +25,10 @@ function BulkSetDates() {
   const [allTasks, setAllTasks] = useState([]);
   const [filteredTasks, setFilteredTasks] = useState([]);
   const [isFetching, setIsFetching] = useState(false);
-  
+  const [idFilter, setIdFilter] = useState(
+    initialTaskIds?.length ? new Set(initialTaskIds) : null
+  );
+
   // Sort states
   const [sortBy, setSortBy] = useState('alphabetical'); // 'alphabetical', 'created', 'duration', 'dueDate'
   const [sortDirection, setSortDirection] = useState('asc'); // 'asc', 'desc'
@@ -54,7 +57,8 @@ function BulkSetDates() {
   // Load task lists on mount
   useEffect(() => {
     loadTaskLists();
-  }, []);
+    if (initialListId) handleFetchTasks(initialListId);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function getDateRangeFromPreset(preset) {
     const today = new Date();
@@ -77,7 +81,7 @@ function BulkSetDates() {
     if (allTasks.length > 0) {
       handleApplyFilters();
     }
-  }, [searchText, searchIn, hasDueDate, relationshipFilter, durationMode, durationValue, durationValueEnd, durationUnit, dateRangeType, dateRangePreset, dateStart, dateEnd, allTasks]);
+  }, [searchText, searchIn, hasDueDate, relationshipFilter, durationMode, durationValue, durationValueEnd, durationUnit, dateRangeType, dateRangePreset, dateStart, dateEnd, allTasks, idFilter]);
 
   // Auto-apply sort whenever filtered tasks or sort criteria change
   useEffect(() => {
@@ -158,14 +162,21 @@ function BulkSetDates() {
     return orParts.some(orPart => {
       const andTerms = orPart.split('&&').map(t => t.trim()).filter(t => t);
       if (andTerms.length === 0) return true;
-      return andTerms.every(term => target.includes(term));
+      return andTerms.every(term => {
+        if (term.startsWith('-') && term.length > 1) {
+          return !target.includes(term.slice(1));
+        }
+        return target.includes(term);
+      });
     });
   }
 
 const handleApplyFilters = useCallback(() => {
     console.log('[BulkSetDates] Applying filters...');
 
-    let filtered = [...allTasks];
+    let filtered = idFilter
+      ? allTasks.filter(t => idFilter.has(t.id))
+      : [...allTasks];
 
     // Search text filter
     if (searchText.trim()) {
@@ -256,7 +267,7 @@ const handleApplyFilters = useCallback(() => {
 
     setFilteredTasks(filtered);
     console.log(`[BulkSetDates] Filtered to ${filtered.length} tasks from ${allTasks.length} total`);
-  }, [allTasks, searchText, searchIn, hasDueDate, relationshipFilter, durationMode, durationValue, durationValueEnd, durationUnit, dateRangeType, dateRangePreset, dateStart, dateEnd]);
+  }, [allTasks, searchText, searchIn, hasDueDate, relationshipFilter, durationMode, durationValue, durationValueEnd, durationUnit, dateRangeType, dateRangePreset, dateStart, dateEnd, idFilter]);
 
 
   /**
@@ -562,7 +573,14 @@ function handleClear() {
       {allTasks.length > 0 && (
         <div className="form-section">
           <h3>Filter & Sort Tasks ({allTasks.length} active tasks)</h3>
-          
+
+          {idFilter && (
+            <div style={{ marginBottom: 'var(--spacing-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)', background: 'rgba(49,130,206,0.1)', border: '1px solid rgba(49,130,206,0.3)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem' }}>
+              Showing {idFilter.size} task{idFilter.size !== 1 ? 's' : ''} from Reports.{' '}
+              <button onClick={() => setIdFilter(null)}>Clear</button>
+            </div>
+          )}
+
             <div className="bulk-dates-filter-grid">
 
             {/* Search Text */}

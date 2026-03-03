@@ -10,7 +10,7 @@ import DueTimelineChart from '../reports/DueTimelineChart';
 import DueHeatmap from '../reports/DueHeatmap';
 import VideoDurationChart from '../reports/VideoDurationChart';
 
-function Reports() {
+function Reports({ onNavigateTo }) {
   const [taskLists, setTaskLists] = useState([]);
   const [selectedList, setSelectedList] = useState('');
   const [loadingLists, setLoadingLists] = useState(true);
@@ -32,6 +32,9 @@ function Reports() {
   const [dateFilterField, setDateFilterField] = useState('due');
   const [clickCount, setClickCount] = useState(0);
   const [taskIdFilter, setTaskIdFilter] = useState(null);
+
+  // Navigation
+  const [selectedSearchTerm, setSelectedSearchTerm] = useState('');
 
   // Move operation
   const [destinationList, setDestinationList] = useState('');
@@ -419,7 +422,18 @@ function Reports() {
           {/* Section 2: Wordcloud */}
           <details className="results-details">
             <summary>Wordcloud</summary>
-            <WordCloud tasks={allTasks} />
+            <WordCloud
+              tasks={allTasks}
+              onWordSelect={(ids, word) => {
+                setDateStart('');
+                setDateEnd('');
+                setClickCount(0);
+                const idSet = new Set(ids);
+                setTaskIdFilter(idSet);
+                setSelectedTaskIds(idSet);
+                setSelectedSearchTerm(word ?? '');
+              }}
+            />
           </details>
 
           {/* Section 3: Graphs */}
@@ -460,6 +474,7 @@ function Reports() {
                 setClickCount(0);
                 setTaskIdFilter(new Set(ids));
                 setSelectedTaskIds(new Set(ids));
+                setSelectedSearchTerm('');
               }} />
             )}
             {selectedReport === 'timeline' && (
@@ -493,6 +508,7 @@ function Reports() {
                   setClickCount(0);
                   setTaskIdFilter(new Set(ids));
                   setSelectedTaskIds(new Set(ids));
+                  setSelectedSearchTerm('');
                 }}
                 onDateClick={(d) => handleHeatmapDateClick(d, 'due')}
               />
@@ -629,6 +645,23 @@ function Reports() {
                   </>
                 )}
               </div>
+            </div>
+            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', flexWrap: 'wrap', marginTop: 'var(--spacing-sm)' }}>
+              {[
+                { label: 'Set Dates', tabId: 'bulk-dates' },
+                { label: 'Bulk Move', tabId: 'bulk-move' },
+                { label: 'Complete',  tabId: 'bulk-complete' },
+                { label: 'Parent/Child', tabId: 'parent-child' },
+              ].map(({ label, tabId }) => (
+                <button
+                  key={tabId}
+                  className={selectedTaskIds.size > 0 ? 'primary' : ''}
+                  disabled={selectedTaskIds.size === 0}
+                  onClick={() => onNavigateTo(tabId, [...selectedTaskIds], selectedSearchTerm, selectedList)}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </details>
 

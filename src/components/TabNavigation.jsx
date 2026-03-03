@@ -28,6 +28,12 @@ const TABS = [
 
 function TabNavigation() {
   const [activeTab, setActiveTab] = useState('bulk-insert');
+  const [pendingNav, setPendingNav] = useState(null);
+
+  function navigateTo(tabId, taskIds, searchTerm = '', listId = '') {
+    setPendingNav({ taskIds, searchTerm, listId });
+    setActiveTab(tabId);
+  }
 
   const ActiveComponent = TABS.find(tab => tab.id === activeTab)?.component;
 
@@ -40,7 +46,7 @@ function TabNavigation() {
             <button
               key={tab.id}
               className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => { setActiveTab(tab.id); setPendingNav(null); }}
             >
               {tab.label}
             </button>
@@ -50,7 +56,14 @@ function TabNavigation() {
 
       {/* Tab Content */}
       <div className="tab-content">
-        {ActiveComponent && <ActiveComponent />}
+        {ActiveComponent && (
+          <ActiveComponent
+            onNavigateTo={navigateTo}
+            initialTaskIds={pendingNav?.taskIds ?? null}
+            initialSearchTerm={pendingNav?.searchTerm ?? ''}
+            initialListId={pendingNav?.listId ?? ''}
+          />
+        )}
       </div>
     </div>
   );
