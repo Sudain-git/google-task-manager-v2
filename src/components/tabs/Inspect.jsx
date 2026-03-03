@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { taskAPI } from '../../utils/taskApi';
 import FetchingIndicator from '../FetchingIndicator';
 
-function Inspect() {
+function Inspect({ initialListId, initialTaskIds }) {
   const [taskLists, setTaskLists] = useState([]);
   const [selectedList, setSelectedList] = useState('');
   const [loadingLists, setLoadingLists] = useState(true);
@@ -29,6 +29,17 @@ function Inspect() {
   useEffect(() => {
     loadTaskLists();
   }, []);
+
+  useEffect(() => {
+    if (!loadingLists && initialListId) {
+      setSelectedList(initialListId);
+      fetchTasks(initialListId).then(() => {
+        if (initialTaskIds?.length === 1) {
+          setSelectedTaskId(initialTaskIds[0]);
+        }
+      });
+    }
+  }, [loadingLists]);
 
   async function loadTaskLists() {
     try {

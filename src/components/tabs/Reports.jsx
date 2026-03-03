@@ -8,7 +8,8 @@ import TaskTimelineChart from '../reports/TaskTimelineChart';
 import UpdatedHeatmap from '../reports/UpdatedHeatmap';
 import DueTimelineChart from '../reports/DueTimelineChart';
 import DueHeatmap from '../reports/DueHeatmap';
-import VideoDurationChart from '../reports/VideoDurationChart';
+import VideosByDurationChart from '../reports/VideosByDurationChart';
+import VideosByDueDateChart from '../reports/VideosByDueDateChart';
 
 function Reports({ onNavigateTo }) {
   const [taskLists, setTaskLists] = useState([]);
@@ -452,7 +453,8 @@ function Reports({ onNavigateTo }) {
                   <option value="heatmap">Updated Heatmap</option>
                   <option value="dueTimeline">Due Date Timeline</option>
                   <option value="dueHeatmap">Due Date Heatmap</option>
-                  <option value="videoDuration">Video Duration</option>
+                  <option value="videosByDueDate">Videos by Due Date</option>
+                  <option value="videosByDuration">Videos by Duration</option>
                 </select>
               </div>
               <div className="form-group" style={{ flex: 1, minWidth: '150px', marginBottom: 0 }}>
@@ -499,15 +501,22 @@ function Reports({ onNavigateTo }) {
                 dateEnd={dateFilterField === 'due' ? dateEnd : ''}
               />
             )}
-            {selectedReport === 'videoDuration' && (
-              <VideoDurationChart
+            {selectedReport === 'videosByDuration' && (
+              <VideosByDurationChart
                 tasks={filteredTasks}
                 onTaskSelect={(ids) => {
-                  setDateStart('');
-                  setDateEnd('');
-                  setClickCount(0);
-                  setTaskIdFilter(new Set(ids));
-                  setSelectedTaskIds(new Set(ids));
+                  setDateStart(''); setDateEnd(''); setClickCount(0);
+                  setTaskIdFilter(new Set(ids)); setSelectedTaskIds(new Set(ids));
+                  setSelectedSearchTerm('');
+                }}
+              />
+            )}
+            {selectedReport === 'videosByDueDate' && (
+              <VideosByDueDateChart
+                tasks={filteredTasks}
+                onTaskSelect={(ids) => {
+                  setDateStart(''); setDateEnd(''); setClickCount(0);
+                  setTaskIdFilter(new Set(ids)); setSelectedTaskIds(new Set(ids));
                   setSelectedSearchTerm('');
                 }}
                 onDateClick={(d) => handleHeatmapDateClick(d, 'due')}
@@ -652,16 +661,20 @@ function Reports({ onNavigateTo }) {
                 { label: 'Bulk Move', tabId: 'bulk-move' },
                 { label: 'Complete',  tabId: 'bulk-complete' },
                 { label: 'Parent/Child', tabId: 'parent-child' },
-              ].map(({ label, tabId }) => (
-                <button
-                  key={tabId}
-                  className={selectedTaskIds.size > 0 ? 'primary' : ''}
-                  disabled={selectedTaskIds.size === 0}
-                  onClick={() => onNavigateTo(tabId, [...selectedTaskIds], selectedSearchTerm, selectedList)}
-                >
-                  {label}
-                </button>
-              ))}
+                { label: 'Inspect', tabId: 'dev', singleOnly: true },
+              ].map(({ label, tabId, singleOnly }) => {
+                const enabled = singleOnly ? selectedTaskIds.size === 1 : selectedTaskIds.size > 0;
+                return (
+                  <button
+                    key={tabId}
+                    className={enabled ? 'primary' : ''}
+                    disabled={!enabled}
+                    onClick={() => onNavigateTo(tabId, [...selectedTaskIds], selectedSearchTerm, selectedList)}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </details>
 
