@@ -2,9 +2,9 @@
 
 Bulk management tool for Google Tasks. Select tasks, apply operations in batch, and visualize your task data with built-in reports.
 
-**Live app**: https://sudain.github.io/google-task-manager-v2/
+**Live app**: https://gtaskbulk.app
 
-**[Privacy Policy](https://sudain.github.io/google-task-manager-v2/privacy.html)** | **[Terms of Service](https://sudain.github.io/google-task-manager-v2/terms.html)**
+**[Privacy Policy](https://gtaskbulk.app/privacy.html)** | **[Terms of Service](https://gtaskbulk.app/terms.html)**
 
 ## Features
 
@@ -39,7 +39,7 @@ This app runs entirely client-side. There is no backend server.
 
 - **OAuth 2.0**: Users authenticate directly with Google. The app requests only the `tasks` scope.
 - **Tokens in memory**: Access tokens are held in JavaScript memory only — never written to localStorage or cookies.
-- **No secrets in code**: The OAuth Client ID is a public identifier, not a secret. Redirect URIs are restricted to the GitHub Pages domain.
+- **No secrets in code**: The OAuth Client ID is a public identifier, not a secret. Redirect URIs are restricted to the gtaskbulk.app domain.
 - **Minimal scopes**: The app only requests access to Google Tasks.
 
 > **"Unverified app" warning**: Because this app uses an external OAuth consent screen that hasn't gone through Google's verification process, new users will see a warning screen. Click "Advanced" then "Go to Google Task Manager V2 (unsafe)" to proceed. This is normal for personal/small projects.
@@ -75,8 +75,8 @@ This app runs entirely client-side. There is no backend server.
 2. Click **Create Credentials** then **OAuth client ID**
 3. Application type: **Web application**
 4. Name: `Google Task Manager V2 - Web Client`
-5. Authorized JavaScript origins: `https://[yourgithub-UsernameHere].github.io`
-6. Authorized redirect URIs: `https://[yourgithub-UsernameHere]].github.io/google-task-manager-v2/`
+5. Authorized JavaScript origins: `https://gtaskbulk.app`
+6. Authorized redirect URIs: `https://gtaskbulk.app`
 7. Click **Create** and copy the **Client ID**
 
 ### 5. Clone and run locally
@@ -112,6 +112,17 @@ To deploy your own fork:
 1. Go to your repo **Settings** then **Secrets and variables** then **Actions**
 2. Add a repository secret: `VITE_GOOGLE_CLIENT_ID` with your Client ID
 3. Push to `main` — the workflow builds and deploys automatically
+
+## Domain recovery (if gtaskbulk.app lapses)
+
+The app is hosted on GitHub Pages with `gtaskbulk.app` as a custom domain. If the domain registration ever lapses, the github.io URL becomes a dead redirect. To restore it in two steps (no rebuild needed):
+
+1. Delete `public/CNAME` from the repo and push to `main`
+2. Go to repo **Settings → Pages** and remove the custom domain
+
+The app will immediately be live at `https://sudain-git.github.io/google-task-manager-v2/`. Asset paths are relative (`./assets/...`), so everything loads correctly at the sub-path.
+
+> **Prevention**: Enable auto-renewal for `gtaskbulk.app` in Porkbun — easiest safeguard.
 
 ## Tech stack
 
