@@ -42,9 +42,19 @@ function BulkSetNotes() {
     const notes = taskNotes.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
     // Check for duplicate tasks
-    const uniqueTitles = new Set(titles);
-    if (titles.length !== uniqueTitles.size) {
-      setValidationError('Duplicate tasks detected in task list. Each task must be unique.');
+    const seen = new Map();
+    const duplicates = new Set();
+    for (const title of titles) {
+      const key = title.toLowerCase();
+      if (seen.has(key)) {
+        duplicates.add(title);
+      } else {
+        seen.set(key, title);
+      }
+    }
+    if (duplicates.size > 0) {
+      const dupList = [...duplicates].map(d => `"${d}"`).join(', ');
+      setValidationError(`Duplicate tasks detected: ${dupList}`);
       return false;
     }
 
