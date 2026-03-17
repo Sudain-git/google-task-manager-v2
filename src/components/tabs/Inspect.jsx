@@ -11,6 +11,16 @@ function Inspect({ initialListId, initialTaskIds }) {
   const [filterText, setFilterText] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [showFields, setShowFields] = useState({
+    taskName: true,
+    dueDate: true,
+    notes: false,
+    parentStatus: false,
+  });
+
+  function toggleField(key) {
+    setShowFields(prev => ({ ...prev, [key]: !prev[key] }));
+  }
 
   const filteredTasks = useMemo(() => {
     if (!filterText) return allTasks;
@@ -25,6 +35,18 @@ function Inspect({ initialListId, initialTaskIds }) {
     if (!selectedTaskId) return null;
     return allTasks.find(t => t.id === selectedTaskId) || null;
   }, [allTasks, selectedTaskId]);
+
+  function getParentStatusText(task) {
+    if (!task) return '';
+    const hasParent = !!task.parent;
+    const parentTask = hasParent ? allTasks.find(t => t.id === task.parent) : null;
+    const childCount = allTasks.filter(t => t.parent === task.id).length;
+
+    if (hasParent && !parentTask) return 'Orphan';
+    if (hasParent && parentTask)  return `Child of "${parentTask.title || '(untitled)'}"`;
+    if (childCount > 0)           return `Parent (${childCount} child${childCount !== 1 ? 'ren' : ''})`;
+    return 'Top-level';
+  }
 
   useEffect(() => {
     loadTaskLists();
@@ -133,6 +155,26 @@ function Inspect({ initialListId, initialTaskIds }) {
         </div>
       </div>
 
+      <div className="form-section">
+        <div style={{ display: 'flex', gap: 'var(--spacing-lg)', flexWrap: 'wrap' }}>
+          {[
+            { key: 'taskName',     label: 'Task Name' },
+            { key: 'dueDate',      label: 'Due Date' },
+            { key: 'notes',        label: 'Notes' },
+            { key: 'parentStatus', label: 'Parent/Child/Orphan Status' },
+          ].map(({ key, label }) => (
+            <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={showFields[key]}
+                onChange={() => toggleField(key)}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      </div>
+
       {isFetching && (
         <FetchingIndicator
           message="Fetching Tasks..."
@@ -157,8 +199,10 @@ function Inspect({ initialListId, initialTaskIds }) {
                   zIndex: 1,
                 }}>
                   <th style={{ width: '40px', padding: '8px', textAlign: 'center' }}></th>
-                  <th style={{ padding: '8px', textAlign: 'left', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Title</th>
-                  <th style={{ padding: '8px', textAlign: 'left', fontSize: '0.8rem', color: 'var(--text-secondary)', width: '110px' }}>Due</th>
+                  {showFields.taskName    && <th style={{ padding: '8px', textAlign: 'left', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Title</th>}
+                  {showFields.dueDate     && <th style={{ padding: '8px', textAlign: 'left', fontSize: '0.8rem', color: 'var(--text-secondary)', width: '110px' }}>Due</th>}
+                  {showFields.notes       && <th style={{ padding: '8px', textAlign: 'left', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Notes</th>}
+                  {showFields.parentStatus && <th style={{ padding: '8px', textAlign: 'left', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Status</th>}
                 </tr>
               </thead>
               <tbody>
@@ -180,21 +224,31 @@ function Inspect({ initialListId, initialTaskIds }) {
                         onChange={() => setSelectedTaskId(task.id)}
                       />
                     </td>
-                    <td style={{
-                      padding: '6px 8px',
-                      fontSize: '0.85rem',
-                      textDecoration: task.status === 'completed' ? 'line-through' : 'none',
-                      color: task.status === 'completed' ? 'var(--text-tertiary)' : 'var(--text-primary)',
-                    }}>
-                      {task.title || '(untitled)'}
-                    </td>
-                    <td style={{
-                      padding: '6px 8px',
-                      fontSize: '0.8rem',
-                      color: 'var(--text-secondary)',
-                    }}>
-                      {task.due ? task.due.slice(0, 10) : '—'}
-                    </td>
+                    {showFields.taskName && (
+                      <td style={{
+                        padding: '6px 8px',
+                        fontSize: '0.85rem',
+                        textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+                        color: task.status === 'completed' ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                      }}>
+                        {task.title || '(untitled)'}
+                      </td>
+                    )}
+                    {showFields.dueDate && (
+                      <td style={{ padding: '6px 8px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        {task.due ? task.due.slice(0, 10) : '—'}
+                      </td>
+                    )}
+                    {showFields.notes && (
+                      <td style={{ padding: '6px 8px', fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {task.notes || '—'}
+                      </td>
+                    )}
+                    {showFields.parentStatus && (
+                      <td style={{ padding: '6px 8px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        {getParentStatusText(task)}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
