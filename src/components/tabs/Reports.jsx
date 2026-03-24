@@ -61,8 +61,7 @@ function Reports({ onNavigateTo }) {
     return filteredTasks.filter(t => {
       const val = t[dateFilterField];
       if (!val) return false;
-      const parsed = new Date(val);
-      const d = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+      const d = typeof val === 'string' ? val.slice(0, 10) : `${val.getFullYear()}-${String(val.getMonth() + 1).padStart(2, '0')}-${String(val.getDate()).padStart(2, '0')}`;
 
       if (dateStart && d < dateStart) return false;
       if (effectiveEnd && d > effectiveEnd) return false;
@@ -646,7 +645,7 @@ function Reports({ onNavigateTo }) {
                         </div>
                         {task[dateFilterField] && (
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', flex: 'none', marginTop: '2px' }}>
-                            {new Date(task[dateFilterField]).toLocaleDateString()}
+                            {new Date(task[dateFilterField].slice(0, 10) + 'T00:00:00').toLocaleDateString()}
                           </span>
                         )}
                       </div>

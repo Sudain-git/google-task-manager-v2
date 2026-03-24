@@ -24,7 +24,10 @@ const DAY_LABELS = [
 ];
 
 function localDateStr(d) {
-  if (typeof d === 'string') d = new Date(d);
+  // When d is a string (e.g. "2026-04-03T14:30:00.000Z" from Google Tasks API), slice the
+  // date portion directly instead of parsing via new Date(). Parsing a UTC timestamp and then
+  // calling getDate() returns the local date, which may differ from the UTC date.
+  if (typeof d === 'string') return d.slice(0, 10);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
