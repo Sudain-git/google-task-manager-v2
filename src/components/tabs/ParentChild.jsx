@@ -647,6 +647,63 @@ function ParentChild({ initialTaskIds, initialSearchTerm, initialListId }) {
     }
   }
 
+  /**
+   * Apply the current filter-section sort to all children at once
+   */
+  async function handleSortChildren() {
+    if (childrenOrder.length < 2) return;
+
+    const children = childrenOrder.map(id => getTaskById(id)).filter(Boolean);
+    let sorted = [...children];
+
+    switch (sortBy) {
+      case 'alphabetical':
+        sorted.sort((a, b) => sortDirection === 'asc'
+          ? a.title.toLowerCase().localeCompare(b.title.toLowerCase())
+          : b.title.toLowerCase().localeCompare(a.title.toLowerCase()));
+        break;
+      case 'created':
+        sorted.sort((a, b) => {
+          const dA = a.updated ? new Date(a.updated).getTime() : 0;
+          const dB = b.updated ? new Date(b.updated).getTime() : 0;
+          return sortDirection === 'asc' ? dA - dB : dB - dA;
+        });
+        break;
+      case 'duration':
+        sorted.sort((a, b) => {
+          const dA = parseDuration(a.notes);
+          const dB = parseDuration(b.notes);
+          return sortDirection === 'asc' ? dA - dB : dB - dA;
+        });
+        break;
+      case 'dueDate':
+        sorted.sort((a, b) => {
+          const dA = a.due ? new Date(a.due).getTime() : Infinity;
+          const dB = b.due ? new Date(b.due).getTime() : Infinity;
+          return sortDirection === 'asc' ? dA - dB : dB - dA;
+        });
+        break;
+      default:
+        break;
+    }
+
+    const sortedIds = sorted.map(t => t.id);
+
+    try {
+      setIsLoading(true);
+      for (let i = 0; i < sortedIds.length; i++) {
+        const previousId = i === 0 ? null : sortedIds[i - 1];
+        await taskAPI.moveTask(selectedList, sortedIds[i], reorderParentId, previousId);
+      }
+      setChildrenOrder(sortedIds);
+    } catch (error) {
+      console.error('Failed to sort children:', error);
+      alert('Failed to sort children: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   if (loadingLists) {
     return (
       <div className="tab-content">
@@ -1587,13 +1644,31 @@ function ParentChild({ initialTaskIds, initialSearchTerm, initialListId }) {
                       maxHeight: '500px',
                       overflowY: 'auto'
                     }}>
-                      <p style={{
-                        margin: '0 0 var(--spacing-md) 0',
-                        fontSize: '0.875rem',
-                        color: 'var(--text-secondary)'
-                      }}>
-                        Children of <strong>{getTaskById(reorderParentId)?.title}</strong> ({childrenOrder.length}):
-                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-md)' }}>
+                        <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', flex: 1 }}>
+                          Children of <strong>{getTaskById(reorderParentId)?.title}</strong> ({childrenOrder.length}):
+                        </p>
+                        {childrenOrder.length >= 2 && (
+                          <button
+                            onClick={handleSortChildren}
+                            disabled={isLoading}
+                            style={{
+                              padding: 'var(--spacing-xs) var(--spacing-md)',
+                              fontSize: '0.8rem',
+                              background: 'var(--accent-primary)',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: 'var(--radius-sm)',
+                              cursor: isLoading ? 'not-allowed' : 'pointer',
+                              opacity: isLoading ? 0.6 : 1,
+                              flexShrink: 0
+                            }}
+                            title="Sort all children using the current sort setting"
+                          >
+                            Apply Sort: {sortBy === 'alphabetical' ? (sortDirection === 'asc' ? 'A→Z' : 'Z→A') : sortBy === 'dueDate' ? 'Due Date' : sortBy === 'created' ? 'Created' : 'Duration'} {sortDirection === 'asc' ? '↑' : '↓'}
+                          </button>
+                        )}
+                      </div>
 
                       {childrenOrder.map((childId, index) => {
                         const child = getTaskById(childId);
