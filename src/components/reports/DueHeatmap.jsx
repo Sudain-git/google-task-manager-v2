@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 const CELL_SIZE = 13;
 const CELL_GAP = 3;
@@ -37,6 +37,7 @@ function formatDate(dateStr) {
 
 function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
   const todayStr = localDateStr(new Date());
+  const [showAllYears, setShowAllYears] = useState(false);
 
   const { countsByDate, childDates, years } = useMemo(() => {
     if (!tasks || tasks.length === 0) return { countsByDate: {}, childDates: new Set(), years: [] };
@@ -204,6 +205,9 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
     ...(activeStats.avgLeadDays != null ? [{ label: 'Average Lead Days', value: `${activeStats.avgLeadDays.toFixed(1)}d` }] : []),
   ] : [];
 
+  const visibleYears = showAllYears ? years : years.slice(0, 2);
+  const hiddenCount = years.length - visibleYears.length;
+
   return (
     <div>
       {stats && (
@@ -226,11 +230,11 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
         </div>
       )}
 
-      {years.map((year, yearIdx) => {
+      {visibleYears.map((year) => {
         const { cells, totalCols, monthLabels, maxCount } = buildYearGrid(year);
         const svgWidth = DAY_LABEL_WIDTH + totalCols * CELL_STEP;
         const svgHeight = MONTH_LABEL_HEIGHT + 7 * CELL_STEP + 8;
-        const palette = YEAR_PALETTES[yearIdx % YEAR_PALETTES.length];
+        const palette = YEAR_PALETTES[years.indexOf(year) % YEAR_PALETTES.length];
         const yearColors = [EMPTY_COLOR, ...palette];
 
         return (
@@ -335,6 +339,21 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
           </div>
         );
       })}
+      {!showAllYears && hiddenCount > 0 && (
+        <button
+          onClick={() => setShowAllYears(true)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--accent-primary)',
+            cursor: 'pointer',
+            fontSize: '0.875rem',
+            padding: 'var(--spacing-xs) 0',
+          }}
+        >
+          Show {hiddenCount} more {hiddenCount === 1 ? 'year' : 'years'}
+        </button>
+      )}
     </div>
   );
 }
