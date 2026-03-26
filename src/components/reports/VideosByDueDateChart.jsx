@@ -4,8 +4,8 @@ import { localDateStr, parseDurationSec, formatDur, durationColor, BRACKETS } fr
 function VideosByDueDateChart({ tasks, onTaskSelect, onDateClick }) {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [rangeMode, setRangeMode] = useState('full');
-  const [target, setTarget] = useState('none');
+  const [rangeMode, setRangeMode] = useState('60d');
+  const [target, setTarget] = useState('lowerQuartile');
 
   const videoTasks = useMemo(() => {
     if (!tasks) return [];
