@@ -7,7 +7,7 @@ function localDateStr(d) {
 function DueTimelineChart({ tasks }) {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [rangeMode, setRangeMode] = useState('full');
+  const [rangeMode, setRangeMode] = useState('14d');
   const [target, setTarget] = useState('lowerQuartile');
 
   const dateRange = useMemo(() => {
