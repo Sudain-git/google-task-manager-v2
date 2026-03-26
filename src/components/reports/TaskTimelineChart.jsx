@@ -7,7 +7,7 @@ function localDateStr(d) {
 function TaskTimelineChart({ tasks }) {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [rangeMode, setRangeMode] = useState('full');
+  const [rangeMode, setRangeMode] = useState('14d');
 
   const dateRange = useMemo(() => {
     if (!tasks || tasks.length === 0) return { min: '', max: '' };
