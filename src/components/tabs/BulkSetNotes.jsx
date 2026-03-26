@@ -127,7 +127,7 @@ function BulkSetNotes() {
 
     // Parse inputs
     const titles = taskTitles.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    const notes = taskNotes.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const notes = taskNotes.split('\n').map(l => l.trim()).filter(l => l.length > 0).map(l => l === '""' ? '' : l);
 
     try {
       setIsLoading(true);
@@ -230,7 +230,7 @@ function BulkSetNotes() {
         <h2>Bulk Set Notes</h2>
         <p>
           Set notes on multiple tasks at once. Match task titles (left) with their corresponding notes (right).
-          Tasks will be matched by exact title.
+          Tasks will be matched by exact title. Use <code>&quot;&quot;</code> as a note to clear it.
         </p>
       </div>
 
