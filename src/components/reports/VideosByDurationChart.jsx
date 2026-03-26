@@ -5,7 +5,7 @@ function VideosByDurationChart({ tasks, onTaskSelect }) {
   const [dueDateFilter, setDueDateFilter] = useState('has-due');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [rangeMode, setRangeMode] = useState('full');
+  const [rangeMode, setRangeMode] = useState('60d');
 
   const videoTasks = useMemo(() => {
     if (!tasks) return [];
