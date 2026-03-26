@@ -75,6 +75,17 @@ function DueTimelineChart({ tasks }) {
       to.setDate(to.getDate() + 30);
       setStartDate(localDateStr(from));
       setEndDate(localDateStr(to));
+    } else if (mode === '6mo') {
+      const today = new Date();
+      const sixMo = new Date(today);
+      sixMo.setMonth(sixMo.getMonth() + 6);
+      setStartDate(localDateStr(today));
+      setEndDate(localDateStr(sixMo));
+    } else if (mode === 'eoy') {
+      const today = new Date();
+      const eoy = new Date(today.getFullYear(), 11, 31);
+      setStartDate(localDateStr(today));
+      setEndDate(localDateStr(eoy));
     }
     // 'custom' → no-op
   }
@@ -175,6 +186,8 @@ function DueTimelineChart({ tasks }) {
               <option value="full">Full Range</option>
               <option value="14d">+/- 7 days</option>
               <option value="60d">+/- 30 days</option>
+              <option value="6mo">Today → 6 Months</option>
+              <option value="eoy">Today → End of Year</option>
               <option value="custom">Custom</option>
             </select>
           </div>
