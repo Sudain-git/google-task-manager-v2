@@ -3,8 +3,11 @@ import { localDateStr, parseDurationSec, BRACKETS } from './videoDurationUtils';
 
 function VideosByDurationChart({ tasks, onTaskSelect }) {
   const [dueDateFilter, setDueDateFilter] = useState('has-due');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const _today0 = new Date();
+  const _from0 = new Date(_today0); _from0.setDate(_from0.getDate() - 30);
+  const _to0 = new Date(_today0); _to0.setDate(_to0.getDate() + 30);
+  const [startDate, setStartDate] = useState(localDateStr(_from0));
+  const [endDate, setEndDate] = useState(localDateStr(_to0));
   const [rangeMode, setRangeMode] = useState('60d');
 
   const videoTasks = useMemo(() => {
