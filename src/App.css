@@ -63,7 +63,7 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
   padding: var(--spacing-2xl);
-  max-width: 600px;
+  max-width: 680px;
   width: 100%;
   text-align: center;
   position: relative;
@@ -104,9 +104,17 @@
 .tagline {
   color: var(--text-secondary);
   font-size: 1rem;
-  margin-bottom: var(--spacing-2xl);
+  margin-bottom: var(--spacing-lg);
   text-transform: uppercase;
   letter-spacing: 0.15em;
+}
+
+.purpose-statement {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  margin-bottom: var(--spacing-2xl);
+  text-align: left;
 }
 
 .feature-grid {
@@ -118,15 +126,12 @@
 
 .feature {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--spacing-sm);
   padding: var(--spacing-md);
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   transition: all var(--transition-base);
 }
 
@@ -138,6 +143,29 @@
 
 .feature-icon {
   font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.feature-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.feature-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.feature-desc {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1.4;
 }
 
 .sign-in-button {

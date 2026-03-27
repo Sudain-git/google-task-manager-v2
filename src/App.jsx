@@ -95,25 +95,43 @@ function App() {
       <div className="app-container">
         <div className="login-screen">
           <div className="login-card">
-            <h1>Task Manager</h1>
+            <h1>Task Manager V2</h1>
             <p className="tagline">Bulk operations for Google Tasks</p>
-            
+
+            <p className="purpose-statement">
+              Task Manager V2 is a free, browser-based tool for performing bulk operations on your Google Tasks.
+              Create, update, move, sort, and report on tasks across your lists.
+              No data is sent to any server.
+            </p>
+
             <div className="feature-grid">
               <div className="feature">
                 <span className="feature-icon">📝</span>
-                <span>Bulk Insert</span>
+                <div className="feature-content">
+                  <span className="feature-name">Bulk Operations</span>
+                  <span className="feature-desc">Insert tasks, set notes and due dates, move, and complete</span>
+                </div>
               </div>
               <div className="feature">
-                <span className="feature-icon">📅</span>
-                <span>Bulk Due Dates</span>
+                <span className="feature-icon">🌳</span>
+                <div className="feature-content">
+                  <span className="feature-name">Parent / Child</span>
+                  <span className="feature-desc">Build or flatten parent-child task hierarchies</span>
+                </div>
               </div>
               <div className="feature">
                 <span className="feature-icon">🎥</span>
-                <span>Reports</span>
+                <div className="feature-content">
+                  <span className="feature-name">Auto Set Notes</span>
+                  <span className="feature-desc">Populate YouTube task notes with video metadata or expand YouTube playlists</span>
+                </div>
               </div>
               <div className="feature">
-                <span className="feature-icon">🔗</span>
-                <span>Bulk Move</span>
+                <span className="feature-icon">📊</span>
+                <div className="feature-content">
+                  <span className="feature-name">Inspect & Report</span>
+                  <span className="feature-desc">Browse and filter raw task data, with heatmaps, timelines, and charts</span>
+                </div>
               </div>
             </div>
 
