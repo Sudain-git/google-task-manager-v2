@@ -8,7 +8,6 @@ import TaskTimelineChart from '../reports/TaskTimelineChart';
 import UpdatedHeatmap from '../reports/UpdatedHeatmap';
 import DueTimelineChart from '../reports/DueTimelineChart';
 import DueHeatmap from '../reports/DueHeatmap';
-import ParentHeatmap from '../reports/ParentHeatmap';
 import VideosByDurationChart from '../reports/VideosByDurationChart';
 import VideosByDueDateChart from '../reports/VideosByDueDateChart';
 
@@ -24,7 +23,7 @@ function Reports({ onNavigateTo }) {
   const [duplicateTaskIds, setDuplicateTaskIds] = useState([]);
 
   // Graphs
-  const [selectedReport, setSelectedReport] = useState('parentChild');
+  const [selectedReport, setSelectedReport] = useState('dueHeatmap');
   const [filterText, setFilterText] = useState('');
   const [selectedParentId, setSelectedParentId] = useState(null);
 
@@ -446,54 +445,36 @@ function Reports({ onNavigateTo }) {
           {/* Section 3: Graphs */}
           <details className="results-details">
             <summary>Graphs</summary>
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '1rem' }}>
-              <div className="form-group" style={{ flex: 1, minWidth: '150px', marginBottom: 0 }}>
-                <label htmlFor="report-select">Report</label>
-                <select
-                  id="report-select"
-                  value={selectedReport}
-                  onChange={e => setSelectedReport(e.target.value)}
-                >
-                  <option value="parentChild">Parent / Child</option>
-                  <option value="parentHeatmap">Parent Heatmap</option>
-                  <option value="timeline">Task Timeline</option>
-                  <option value="heatmap">Updated Heatmap</option>
-                  <option value="dueTimeline">Due Date Timeline</option>
-                  <option value="dueHeatmap">Due Date Heatmap</option>
-                  <option value="videosByDueDate">Videos by Due Date</option>
-                  <option value="videosByDuration">Videos by Duration</option>
-                </select>
+            {selectedReport !== 'dueHeatmap' && (
+              <div style={{ display: 'flex', gap: 'var(--spacing-sm, 8px)', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '1rem' }}>
+                <div className="form-group" style={{ flex: '1 1 120px', marginBottom: 0 }}>
+                  <label htmlFor="report-select">Report</label>
+                  <select
+                    id="report-select"
+                    value={selectedReport}
+                    onChange={e => setSelectedReport(e.target.value)}
+                  >
+                    <option value="dueHeatmap">Due Date Heatmap</option>
+                    <option value="dueTimeline">Due Date Timeline</option>
+                    <option value="parentChild">Parent / Child</option>
+                    <option value="heatmap">Updated Heatmap</option>
+                    <option value="timeline">Updated Timeline</option>
+                    <option value="videosByDueDate">Videos by Due Date</option>
+                    <option value="videosByDuration">Videos by Duration</option>
+                  </select>
+                </div>
+                <div className="form-group" style={{ minWidth: '150px', marginBottom: 0, marginLeft: 'auto' }}>
+                  <label htmlFor="filter-text">Filter</label>
+                  <input
+                    id="filter-text"
+                    type="text"
+                    value={filterText}
+                    onChange={e => setFilterText(e.target.value)}
+                    placeholder="Filter tasks..."
+                  />
+                </div>
               </div>
-              <div className="form-group" style={{ flex: 1, minWidth: '150px', marginBottom: 0 }}>
-                {selectedReport === 'parentHeatmap' ? (
-                  <>
-                    <label htmlFor="parent-select">Parent</label>
-                    <select
-                      id="parent-select"
-                      value={selectedParentId || ''}
-                      onChange={e => setSelectedParentId(e.target.value || null)}
-                      style={{ maxWidth: '100%', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                    >
-                      <option value="">None</option>
-                      {parentTasks.map(p => (
-                        <option key={p.id} value={p.id}>{p.title}</option>
-                      ))}
-                    </select>
-                  </>
-                ) : (
-                  <>
-                    <label htmlFor="filter-text">Filter</label>
-                    <input
-                      id="filter-text"
-                      type="text"
-                      value={filterText}
-                      onChange={e => setFilterText(e.target.value)}
-                      placeholder="Filter tasks..."
-                    />
-                  </>
-                )}
-              </div>
-            </div>
+            )}
 
             {selectedReport === 'parentChild' && (
               <ParentChildReport tasks={filteredTasks} onTaskSelect={(ids) => {
@@ -525,17 +506,61 @@ function Reports({ onNavigateTo }) {
                 onDateClick={(d) => handleHeatmapDateClick(d, 'due')}
                 dateStart={dateFilterField === 'due' ? dateStart : ''}
                 dateEnd={dateFilterField === 'due' ? dateEnd : ''}
-              />
-            )}
-            {selectedReport === 'parentHeatmap' && (
-              <ParentHeatmap
-                tasks={filteredTasks}
-                onDateClick={(d) => handleHeatmapDateClick(d, 'due')}
-                dateStart={dateFilterField === 'due' ? dateStart : ''}
-                dateEnd={dateFilterField === 'due' ? dateEnd : ''}
                 selectedParentId={selectedParentId}
+                controls={
+                  <>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label htmlFor="report-select" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 0 }}>Report</label>
+                      <select
+                        id="report-select"
+                        value={selectedReport}
+                        onChange={e => setSelectedReport(e.target.value)}
+                        style={{ margin: 0 }}
+                      >
+                        <option value="dueHeatmap">Due Date Heatmap</option>
+                        <option value="dueTimeline">Due Date Timeline</option>
+                        <option value="parentChild">Parent / Child</option>
+                        <option value="heatmap">Updated Heatmap</option>
+                        <option value="timeline">Updated Timeline</option>
+                        <option value="videosByDueDate">Videos by Due Date</option>
+                        <option value="videosByDuration">Videos by Duration</option>
+                      </select>
+                    </div>
+                    <div />
+                    {parentTasks.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label htmlFor="parent-select" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 0 }}>Parent</label>
+                        <select
+                          id="parent-select"
+                          value={selectedParentId || ''}
+                          onChange={e => setSelectedParentId(e.target.value || null)}
+                          style={{ margin: 0, width: '100%' }}
+                        >
+                          <option value="">None</option>
+                          {parentTasks.map(p => (
+                            <option key={p.id} value={p.id}>{p.title}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <div />
+                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label htmlFor="filter-text" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 0 }}>Filter</label>
+                      <input
+                        id="filter-text"
+                        type="text"
+                        value={filterText}
+                        onChange={e => setFilterText(e.target.value)}
+                        placeholder="Filter tasks..."
+                        style={{ margin: 0 }}
+                      />
+                    </div>
+                  </>
+                }
               />
             )}
+
             {selectedReport === 'videosByDuration' && (
               <VideosByDurationChart
                 tasks={filteredTasks}

@@ -35,9 +35,24 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
+function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd, selectedParentId, controls }) {
   const todayStr = localDateStr(new Date());
   const [showAllYears, setShowAllYears] = useState(false);
+
+  const parentChildDates = useMemo(() => {
+    if (!selectedParentId || !tasks) return new Set();
+    const s = new Set();
+    tasks.forEach(t => {
+      if (t.parent === selectedParentId && t.due) s.add(localDateStr(t.due));
+    });
+    return s;
+  }, [tasks, selectedParentId]);
+
+  const parentDueDate = useMemo(() => {
+    if (!selectedParentId || !tasks) return null;
+    const parent = tasks.find(t => t.id === selectedParentId);
+    return parent && parent.due ? localDateStr(parent.due) : null;
+  }, [tasks, selectedParentId]);
 
   const { countsByDate, childDates, years } = useMemo(() => {
     if (!tasks || tasks.length === 0) return { countsByDate: {}, childDates: new Set(), years: [] };
@@ -191,8 +206,20 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
 
   if (!tasks || tasks.length === 0) {
     return (
-      <div className="card">
-        <p>Select a list to see report.</p>
+      <div>
+        {controls && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 'var(--spacing-sm, 8px)',
+            marginBottom: 'var(--spacing-md, 16px)',
+          }}>
+            {controls}
+          </div>
+        )}
+        <div className="card">
+          <p>Select a list to see report.</p>
+        </div>
       </div>
     );
   }
@@ -210,16 +237,16 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
 
   return (
     <div>
-      {stats && (
+      {(stats || controls) && (
         <div style={{
-          display: 'flex',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
           gap: 'var(--spacing-sm, 8px)',
-          flexWrap: 'wrap',
           marginBottom: 'var(--spacing-md, 16px)',
         }}>
+          {controls}
           {metrics.map(m => (
             <div key={m.label} className="card" style={{
-              flex: '1 1 120px',
               textAlign: 'center',
               padding: 'var(--spacing-sm, 8px) var(--spacing-md, 16px)',
             }}>
@@ -277,27 +304,27 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
                 ))}
 
                 {/* Heatmap cells */}
-                {cells.map(cell => (
-                  <g key={cell.date} style={{ cursor: 'pointer' }} onClick={() => onDateClick && onDateClick(cell.date)}>
-                    <rect
-                      x={DAY_LABEL_WIDTH + cell.x * CELL_STEP}
-                      y={MONTH_LABEL_HEIGHT + cell.y * CELL_STEP}
-                      width={CELL_SIZE}
-                      height={CELL_SIZE}
-                      rx={2}
-                      ry={2}
-                      fill={yearColors[cell.level]}
-                      stroke={isInRange(cell.date) ? 'var(--text-primary, #1a202c)' : undefined}
-                      strokeWidth={isInRange(cell.date) ? 2 : undefined}
-                    >
-                      <title>{`${formatDate(cell.date)}: ${cell.count} task${cell.count !== 1 ? 's' : ''}${childDates.has(cell.date) ? ' (has subtasks)' : ''}`}</title>
-                    </rect>
-                    {cell.date === todayStr && (() => {
-                      const cx = DAY_LABEL_WIDTH + cell.x * CELL_STEP + CELL_SIZE / 2;
-                      const cy = MONTH_LABEL_HEIGHT + cell.y * CELL_STEP + CELL_SIZE / 2;
-                      const s = CELL_SIZE / 2;
-                      const p = s / 3;
-                      return (
+                {cells.map(cell => {
+                  const cx = DAY_LABEL_WIDTH + cell.x * CELL_STEP + CELL_SIZE / 2;
+                  const cy = MONTH_LABEL_HEIGHT + cell.y * CELL_STEP + CELL_SIZE / 2;
+                  const s = CELL_SIZE / 2;
+                  const p = s / 3;
+                  return (
+                    <g key={cell.date} style={{ cursor: 'pointer' }} onClick={() => onDateClick && onDateClick(cell.date)}>
+                      <rect
+                        x={DAY_LABEL_WIDTH + cell.x * CELL_STEP}
+                        y={MONTH_LABEL_HEIGHT + cell.y * CELL_STEP}
+                        width={CELL_SIZE}
+                        height={CELL_SIZE}
+                        rx={2}
+                        ry={2}
+                        fill={yearColors[cell.level]}
+                        stroke={isInRange(cell.date) ? 'var(--text-primary, #1a202c)' : undefined}
+                        strokeWidth={isInRange(cell.date) ? 2 : undefined}
+                      >
+                        <title>{`${formatDate(cell.date)}: ${cell.count} task${cell.count !== 1 ? 's' : ''}${childDates.has(cell.date) ? ' (has subtasks)' : ''}`}</title>
+                      </rect>
+                      {cell.date === todayStr && (
                         <polygon
                           points={`${cx},${cy-s} ${cx+p},${cy-p} ${cx+s},${cy} ${cx+p},${cy+p} ${cx},${cy+s} ${cx-p},${cy+p} ${cx-s},${cy} ${cx-p},${cy-p}`}
                           fill="#fff"
@@ -305,19 +332,19 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd }) {
                           strokeWidth={1}
                           pointerEvents="none"
                         />
-                      );
-                    })()}
-                    {childDates.has(cell.date) && cell.date !== todayStr && (
-                      <circle
-                        cx={DAY_LABEL_WIDTH + cell.x * CELL_STEP + CELL_SIZE / 2}
-                        cy={MONTH_LABEL_HEIGHT + cell.y * CELL_STEP + CELL_SIZE / 2}
-                        r={2}
-                        fill="#3b82f6"
-                        pointerEvents="none"
-                      />
-                    )}
-                  </g>
-                ))}
+                      )}
+                      {childDates.has(cell.date) && cell.date !== todayStr && !parentChildDates.has(cell.date) && (
+                        <circle cx={cx} cy={cy} r={2} fill="#3b82f6" pointerEvents="none" />
+                      )}
+                      {parentChildDates.has(cell.date) && (
+                        <circle cx={cx} cy={cy} r={4} fill="#3b82f6" stroke="#000" strokeWidth={1} pointerEvents="none" />
+                      )}
+                      {parentDueDate === cell.date && (
+                        <circle cx={cx} cy={cy} r={4} fill="#22c55e" stroke="#000" strokeWidth={1} pointerEvents="none" />
+                      )}
+                    </g>
+                  );
+                })}
               </svg>
             </div>
             {maxCount > 0 && (() => {

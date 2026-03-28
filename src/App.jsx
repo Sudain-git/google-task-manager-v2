@@ -101,7 +101,6 @@ function App() {
             <p className="purpose-statement">
               Task Manager V2 is a free, browser-based tool for performing bulk operations on your Google Tasks.
               Create, update, move, sort, and report on tasks across your lists.
-              No data is sent to any server.
             </p>
 
             <div className="feature-grid">
@@ -141,8 +140,10 @@ function App() {
 
             <div className="privacy-notice">
               <p>
-                This app requires access to your Tasks list.
-                Your data is never stored on our servers.
+                This app requires access to your Tasks list.  An optional, secondary login may be used if you wish to retreive YouTube channel names.
+                <br />
+                <br />
+                This tool runs 100% locally. We never see, collect, or store your data.
               </p>
               <p className="legal-links">
                 <a href="https://sudain-git.github.io/google-task-manager-v2/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
