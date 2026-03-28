@@ -53,6 +53,11 @@ function Reports({ onNavigateTo }) {
     );
   }, [allTasks, filterText]);
 
+  const parentFilteredTasks = useMemo(() => {
+    if (!selectedParentId) return null;
+    return filteredTasks.filter(t => t.id === selectedParentId || t.parent === selectedParentId);
+  }, [filteredTasks, selectedParentId]);
+
   const parentTasks = useMemo(() => {
     const parentIds = new Set(allTasks.filter(t => t.parent).map(t => t.parent));
     return allTasks.filter(t => parentIds.has(t.id)).sort((a, b) => a.title.localeCompare(b.title));
@@ -151,6 +156,28 @@ function Reports({ onNavigateTo }) {
       setMoveResults(null);
     }
   }, [selectedList]);
+
+  // Auto-select parent + children in Selected Tasks when parent changes
+  useEffect(() => {
+    if (!selectedParentId) {
+      setTaskIdFilter(null);
+      setSelectedTaskIds(new Set());
+      setDateStart('');
+      setDateEnd('');
+      setClickCount(0);
+      return;
+    }
+    const ids = new Set(
+      allTasks
+        .filter(t => t.id === selectedParentId || t.parent === selectedParentId)
+        .map(t => t.id)
+    );
+    setTaskIdFilter(ids);
+    setSelectedTaskIds(ids);
+    setDateStart('');
+    setDateEnd('');
+    setClickCount(0);
+  }, [selectedParentId, allTasks]);
 
   async function loadTaskLists() {
     try {
@@ -507,6 +534,7 @@ function Reports({ onNavigateTo }) {
                 dateStart={dateFilterField === 'due' ? dateStart : ''}
                 dateEnd={dateFilterField === 'due' ? dateEnd : ''}
                 selectedParentId={selectedParentId}
+                statsTasks={parentFilteredTasks}
                 controls={
                   <>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

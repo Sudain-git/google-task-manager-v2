@@ -35,7 +35,7 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd, selectedParentId, controls }) {
+function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd, selectedParentId, controls, statsTasks }) {
   const todayStr = localDateStr(new Date());
   const [showAllYears, setShowAllYears] = useState(false);
 
@@ -90,10 +90,21 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd, selectedParentId, 
     return { countsByDate: counts, childDates: childSet, years: yrs };
   }, [tasks]);
 
+  const statsCountsByDate = useMemo(() => {
+    if (!statsTasks) return countsByDate;
+    const counts = {};
+    for (const t of statsTasks) {
+      if (!t.due) continue;
+      const d = localDateStr(t.due);
+      counts[d] = (counts[d] || 0) + 1;
+    }
+    return counts;
+  }, [statsTasks, countsByDate]);
+
   const STEPS = 10;
 
   const stats = useMemo(() => {
-    const entries = Object.entries(countsByDate);
+    const entries = Object.entries(statsCountsByDate);
     if (entries.length === 0) return null;
     const total = entries.reduce((s, [, c]) => s + c, 0);
     const dates = entries.map(([d]) => d).sort();
@@ -108,7 +119,7 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd, selectedParentId, 
 
     let avgLeadDays = null;
     const diffs = [];
-    for (const t of tasks) {
+    for (const t of (statsTasks || tasks)) {
       if (!t.due || !t.updated) continue;
       const due = new Date(t.due);
       const updated = new Date(t.updated);
@@ -119,12 +130,12 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd, selectedParentId, 
     }
 
     return { total, avgPerDay, busiestDay: { date: busiestDay[0], count: busiestDay[1] }, avgLeadDays };
-  }, [countsByDate, tasks]);
+  }, [statsCountsByDate, statsTasks, tasks]);
 
   const rangeStats = useMemo(() => {
     if (!dateStart) return null;
     const end = dateEnd || dateStart;
-    const entries = Object.entries(countsByDate).filter(([d]) => d >= dateStart && d <= end);
+    const entries = Object.entries(statsCountsByDate).filter(([d]) => d >= dateStart && d <= end);
     if (entries.length === 0) return { total: 0, avgPerDay: 0, busiestDay: { date: dateStart, count: 0 }, avgLeadDays: null };
     const total = entries.reduce((s, [, c]) => s + c, 0);
     const dates = entries.map(([d]) => d).sort();
@@ -139,7 +150,7 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd, selectedParentId, 
 
     let avgLeadDays = null;
     const diffs = [];
-    for (const t of tasks) {
+    for (const t of (statsTasks || tasks)) {
       if (!t.due || !t.updated) continue;
       const d = localDateStr(t.due);
       if (d < dateStart || d > end) continue;
@@ -152,7 +163,7 @@ function DueHeatmap({ tasks, onDateClick, dateStart, dateEnd, selectedParentId, 
     }
 
     return { total, avgPerDay, busiestDay: { date: busiestDay[0], count: busiestDay[1] }, avgLeadDays };
-  }, [countsByDate, tasks, dateStart, dateEnd]);
+  }, [statsCountsByDate, statsTasks, tasks, dateStart, dateEnd]);
 
   function isInRange(dateStr) {
     if (!dateStart) return false;
