@@ -8,6 +8,7 @@ import TaskTimelineChart from '../reports/TaskTimelineChart';
 import UpdatedHeatmap from '../reports/UpdatedHeatmap';
 import DueTimelineChart from '../reports/DueTimelineChart';
 import DueHeatmap from '../reports/DueHeatmap';
+import ParentHeatmap from '../reports/ParentHeatmap';
 import VideosByDurationChart from '../reports/VideosByDurationChart';
 import VideosByDueDateChart from '../reports/VideosByDueDateChart';
 
@@ -25,6 +26,7 @@ function Reports({ onNavigateTo }) {
   // Graphs
   const [selectedReport, setSelectedReport] = useState('parentChild');
   const [filterText, setFilterText] = useState('');
+  const [selectedParentId, setSelectedParentId] = useState(null);
 
   // Selected Tasks
   const [dateStart, setDateStart] = useState('');
@@ -51,6 +53,11 @@ function Reports({ onNavigateTo }) {
       (t.notes && t.notes.toLowerCase().includes(lower))
     );
   }, [allTasks, filterText]);
+
+  const parentTasks = useMemo(() => {
+    const parentIds = new Set(allTasks.filter(t => t.parent).map(t => t.parent));
+    return allTasks.filter(t => parentIds.has(t.id)).sort((a, b) => a.title.localeCompare(b.title));
+  }, [allTasks]);
 
   const dateFilteredTasks = useMemo(() => {
     if (taskIdFilter) return filteredTasks.filter(t => taskIdFilter.has(t.id));
@@ -448,6 +455,7 @@ function Reports({ onNavigateTo }) {
                   onChange={e => setSelectedReport(e.target.value)}
                 >
                   <option value="parentChild">Parent / Child</option>
+                  <option value="parentHeatmap">Parent Heatmap</option>
                   <option value="timeline">Task Timeline</option>
                   <option value="heatmap">Updated Heatmap</option>
                   <option value="dueTimeline">Due Date Timeline</option>
@@ -457,14 +465,33 @@ function Reports({ onNavigateTo }) {
                 </select>
               </div>
               <div className="form-group" style={{ flex: 1, minWidth: '150px', marginBottom: 0 }}>
-                <label htmlFor="filter-text">Filter</label>
-                <input
-                  id="filter-text"
-                  type="text"
-                  value={filterText}
-                  onChange={e => setFilterText(e.target.value)}
-                  placeholder="Filter tasks..."
-                />
+                {selectedReport === 'parentHeatmap' ? (
+                  <>
+                    <label htmlFor="parent-select">Parent</label>
+                    <select
+                      id="parent-select"
+                      value={selectedParentId || ''}
+                      onChange={e => setSelectedParentId(e.target.value || null)}
+                      style={{ maxWidth: '100%', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                    >
+                      <option value="">None</option>
+                      {parentTasks.map(p => (
+                        <option key={p.id} value={p.id}>{p.title}</option>
+                      ))}
+                    </select>
+                  </>
+                ) : (
+                  <>
+                    <label htmlFor="filter-text">Filter</label>
+                    <input
+                      id="filter-text"
+                      type="text"
+                      value={filterText}
+                      onChange={e => setFilterText(e.target.value)}
+                      placeholder="Filter tasks..."
+                    />
+                  </>
+                )}
               </div>
             </div>
 
@@ -498,6 +525,15 @@ function Reports({ onNavigateTo }) {
                 onDateClick={(d) => handleHeatmapDateClick(d, 'due')}
                 dateStart={dateFilterField === 'due' ? dateStart : ''}
                 dateEnd={dateFilterField === 'due' ? dateEnd : ''}
+              />
+            )}
+            {selectedReport === 'parentHeatmap' && (
+              <ParentHeatmap
+                tasks={filteredTasks}
+                onDateClick={(d) => handleHeatmapDateClick(d, 'due')}
+                dateStart={dateFilterField === 'due' ? dateStart : ''}
+                dateEnd={dateFilterField === 'due' ? dateEnd : ''}
+                selectedParentId={selectedParentId}
               />
             )}
             {selectedReport === 'videosByDuration' && (
