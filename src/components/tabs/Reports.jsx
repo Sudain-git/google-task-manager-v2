@@ -26,6 +26,7 @@ function Reports({ onNavigateTo }) {
   const [selectedReport, setSelectedReport] = useState('dueHeatmap');
   const [filterText, setFilterText] = useState('');
   const [selectedParentId, setSelectedParentId] = useState(null);
+  const [showAllTasks, setShowAllTasks] = useState(true);
 
   // Selected Tasks
   const [dateStart, setDateStart] = useState('');
@@ -159,6 +160,7 @@ function Reports({ onNavigateTo }) {
 
   // Auto-select parent + children in Selected Tasks when parent changes
   useEffect(() => {
+    setShowAllTasks(true);
     if (!selectedParentId) {
       setTaskIdFilter(null);
       setSelectedTaskIds(new Set());
@@ -456,7 +458,7 @@ function Reports({ onNavigateTo }) {
           <details className="results-details">
             <summary>Wordcloud</summary>
             <WordCloud
-              tasks={allTasks}
+              tasks={parentFilteredTasks || allTasks}
               onWordSelect={(ids, word) => {
                 setDateStart('');
                 setDateEnd('');
@@ -529,7 +531,7 @@ function Reports({ onNavigateTo }) {
             )}
             {selectedReport === 'dueHeatmap' && (
               <DueHeatmap
-                tasks={filteredTasks}
+                tasks={selectedParentId && !showAllTasks ? parentFilteredTasks : filteredTasks}
                 onDateClick={(d) => handleHeatmapDateClick(d, 'due')}
                 dateStart={dateFilterField === 'due' ? dateStart : ''}
                 dateEnd={dateFilterField === 'due' ? dateEnd : ''}
@@ -554,7 +556,20 @@ function Reports({ onNavigateTo }) {
                         <option value="videosByDuration">Videos by Duration</option>
                       </select>
                     </div>
-                    <div />
+                    {selectedParentId ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+                          <input
+                            type="checkbox"
+                            checked={showAllTasks}
+                            onChange={e => setShowAllTasks(e.target.checked)}
+                          />
+                          Show all tasks
+                        </label>
+                      </div>
+                    ) : (
+                      <div />
+                    )}
                     {parentTasks.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <label htmlFor="parent-select" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 0 }}>Parent</label>
