@@ -1,17 +1,17 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import './TabNavigation.css';
 
-// Import tab components
-import BulkInsert from './tabs/BulkInsert';
-import BulkSetNotes from './tabs/BulkSetNotes';
-import BulkSetDates from './tabs/BulkSetDates';
-import BulkMove from './tabs/BulkMove';
-import BulkComplete from './tabs/BulkComplete';
-import ParentChild from './tabs/ParentChild';
-import AutoSetNotes from './tabs/AutoSetNotes';
-import ListImport from './tabs/ListImport';
-import Reports from './tabs/Reports';
-import Inspect from './tabs/Inspect';
+// Lazy-load tab components so each becomes its own bundle chunk
+const BulkInsert   = lazy(() => import('./tabs/BulkInsert'));
+const BulkSetNotes = lazy(() => import('./tabs/BulkSetNotes'));
+const BulkSetDates = lazy(() => import('./tabs/BulkSetDates'));
+const BulkMove     = lazy(() => import('./tabs/BulkMove'));
+const BulkComplete = lazy(() => import('./tabs/BulkComplete'));
+const ParentChild  = lazy(() => import('./tabs/ParentChild'));
+const AutoSetNotes = lazy(() => import('./tabs/AutoSetNotes'));
+const ListImport   = lazy(() => import('./tabs/ListImport'));
+const Reports      = lazy(() => import('./tabs/Reports'));
+const Inspect      = lazy(() => import('./tabs/Inspect'));
 
 const TABS = [
   { id: 'bulk-insert', label: 'Bulk Insert', component: BulkInsert },
@@ -56,14 +56,16 @@ function TabNavigation() {
 
       {/* Tab Content */}
       <div className="tab-content">
-        {ActiveComponent && (
-          <ActiveComponent
-            onNavigateTo={navigateTo}
-            initialTaskIds={pendingNav?.taskIds ?? null}
-            initialSearchTerm={pendingNav?.searchTerm ?? ''}
-            initialListId={pendingNav?.listId ?? ''}
-          />
-        )}
+        <Suspense fallback={<div className="spinner"></div>}>
+          {ActiveComponent && (
+            <ActiveComponent
+              onNavigateTo={navigateTo}
+              initialTaskIds={pendingNav?.taskIds ?? null}
+              initialSearchTerm={pendingNav?.searchTerm ?? ''}
+              initialListId={pendingNav?.listId ?? ''}
+            />
+          )}
+        </Suspense>
       </div>
     </div>
   );

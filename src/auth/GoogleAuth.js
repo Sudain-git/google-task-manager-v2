@@ -241,42 +241,38 @@ createTokenClient() {
   }
 
   /**
-   * Get current access token
-   * Will attempt to refresh if expired
+   * Get current access token (tasks scope).
+   * Uses stored expiration timestamp — no live network call to validate.
+   * Refreshes silently if the token is expired or within 60 s of expiry.
    */
   async getAccessToken() {
     if (!this.accessToken) {
       throw new Error('No access token available. Please sign in.');
     }
 
-    // Check if token is still valid by making a test request
-    try {
-      await window.gapi.client.tasks.tasklists.list({ maxResults: 1 });
+    // Token still valid for at least another 60 seconds — return immediately
+    if (this.tokenExpiresAt && Date.now() < this.tokenExpiresAt - 60_000) {
       return this.accessToken;
-    } catch (error) {
-      // Token might be expired, request a new one
-      if (error.status === 401) {
-        console.log('[Auth] Token expired, requesting new token...');
-        
-        // Request new token silently (without consent screen if possible)
-        return new Promise((resolve, reject) => {
-          this.tokenClient.callback = (response) => {
-            if (response.error) {
-              reject(new Error('Failed to refresh token'));
-              return;
-            }
-            
-            this.accessToken = response.access_token;
-            window.gapi.client.setToken({ access_token: this.accessToken });
-            resolve(this.accessToken);
-          };
-          
-          this.tokenClient.requestAccessToken({ prompt: '' });
-        });
-      }
-      
-      throw error;
     }
+
+    // Token expired or expiring soon — request a new one silently
+    console.log('[Auth] Tasks token expired or expiring soon, refreshing...');
+    return new Promise((resolve, reject) => {
+      const originalCallback = this.tokenClient.callback;
+      this.tokenClient.callback = (response) => {
+        this.tokenClient.callback = originalCallback;
+        if (response.error) {
+          reject(new Error('Failed to refresh tasks token'));
+          return;
+        }
+        this.accessToken = response.access_token;
+        const expiresIn = response.expires_in || 3600;
+        this.tokenExpiresAt = Date.now() + (expiresIn * 1000);
+        window.gapi.client.setToken({ access_token: this.accessToken });
+        resolve(this.accessToken);
+      };
+      this.tokenClient.requestAccessToken({ prompt: '' });
+    });
   }
 
   /**

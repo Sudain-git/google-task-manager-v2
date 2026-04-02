@@ -187,6 +187,7 @@ export async function getUserSubscriptions(accessToken) {
 /**
  * Batch fetch video metadata for multiple videos
  * YouTube API allows up to 50 video IDs per request
+ * All batches are independent so they fire in parallel via Promise.all
  */
 export async function getBatchVideoMetadata(videoIds) {
   if (!YOUTUBE_API_KEY) {
@@ -194,37 +195,39 @@ export async function getBatchVideoMetadata(videoIds) {
   }
 
   const BATCH_SIZE = 50;
-  const results = [];
-  
-  // Process in batches of 50
+
+  // Build all fetch Promises upfront — batches are independent, fire in parallel
+  const batchPromises = [];
   for (let i = 0; i < videoIds.length; i += BATCH_SIZE) {
     const batch = videoIds.slice(i, i + BATCH_SIZE);
     const url = `${YOUTUBE_API_BASE}/videos?part=snippet,contentDetails&id=${batch.join(',')}&key=${YOUTUBE_API_KEY}`;
-    
-    try {
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`YouTube API error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.items) {
-        data.items.forEach(video => {
-          results.push({
-            videoId: video.id,
-            title: video.snippet.title,
-            channelTitle: video.snippet.channelTitle,
-            duration: formatDuration(video.contentDetails.duration)
-          });
-        });
-      }
-    } catch (error) {
-      console.error('[YouTubeAPI] Failed to fetch batch:', error);
-      // Continue with other batches even if one fails
-    }
+    batchPromises.push(
+      fetch(url)
+        .then(response => {
+          if (!response.ok) throw new Error(`YouTube API error: ${response.status}`);
+          return response.json();
+        })
+        .catch(error => {
+          console.error('[YouTubeAPI] Failed to fetch batch:', error);
+          return null; // allow other batches to succeed even if one fails
+        })
+    );
   }
-  
+
+  const batchResults = await Promise.all(batchPromises);
+
+  const results = [];
+  for (const data of batchResults) {
+    if (!data || !data.items) continue;
+    data.items.forEach(video => {
+      results.push({
+        videoId: video.id,
+        title: video.snippet.title,
+        channelTitle: video.snippet.channelTitle,
+        duration: formatDuration(video.contentDetails.duration)
+      });
+    });
+  }
+
   return results;
 }

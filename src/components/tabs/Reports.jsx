@@ -217,9 +217,8 @@ function Reports({ onNavigateTo }) {
   }
 
   async function handleMoveDuplicates() {
-    if (!destinationList || duplicateTaskIds.length === 0) return;
-
-    const taskIds = duplicateTaskIds;
+    const taskIds = duplicateTaskIds.filter(id => selectedTaskIds.has(id));
+    if (!destinationList || taskIds.length === 0) return;
     setIsMoving(true);
     setMoveProgress({ current: 0, total: taskIds.length });
     setMoveResults(null);
@@ -425,12 +424,15 @@ function Reports({ onNavigateTo }) {
 
                   <button
                     className="primary"
-                    disabled={!destinationList || isMoving}
+                    disabled={!destinationList || isMoving || !duplicateTaskIds.some(id => selectedTaskIds.has(id))}
                     onClick={handleMoveDuplicates}
                   >
                     {isMoving
                       ? `Moving... (${moveProgress.current}/${moveProgress.total})`
-                      : `Move ${duplicateTaskIds.length} Duplicate${duplicateTaskIds.length !== 1 ? 's' : ''} to ${destListName || '...'}`}
+                      : (() => {
+                          const n = duplicateTaskIds.filter(id => selectedTaskIds.has(id)).length;
+                          return `Move ${n} Duplicate${n !== 1 ? 's' : ''} to ${destListName || '...'}`;
+                        })()}
                   </button>
 
                   {isMoving && (
