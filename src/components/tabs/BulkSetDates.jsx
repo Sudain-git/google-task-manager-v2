@@ -435,6 +435,22 @@ function handleClear() {
             weekdaysAdded++;
           }
         }
+      } else if (unit === 'weekends') {
+        // First, move start date to a weekend day if it's on a weekday
+        let dayOfWeek = date.getDay();
+        while (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          date.setDate(date.getDate() + 1);
+          dayOfWeek = date.getDay();
+        }
+        // Then add totalAmount weekend days
+        let weekendsAdded = 0;
+        while (weekendsAdded < totalAmount) {
+          date.setDate(date.getDate() + 1);
+          dayOfWeek = date.getDay();
+          if (dayOfWeek === 0 || dayOfWeek === 6) {
+            weekendsAdded++;
+          }
+        }
       } else if (unit === 'weeks') {
         date.setDate(date.getDate() + (totalAmount * 7));
       } else if (unit === 'months') {
@@ -1261,6 +1277,7 @@ function handleClear() {
               >
                 <option value="days">Days</option>
                 <option value="weekdays">Weekdays</option>
+                <option value="weekends">Weekends</option>
                 <option value="weeks">Weeks</option>
                 <option value="months">Months</option>
               </select>
@@ -1289,6 +1306,34 @@ function handleClear() {
                   color: 'var(--accent-warning, #ed8936)'
                 }}>
                   Start date falls on a weekend. First task will be assigned to Monday {nextMonday.toLocaleDateString()}.
+                </div>
+              );
+            }
+            return null;
+          })()}
+
+          {/* Weekday Start Date Notice for Weekends unit */}
+          {startDate && frequency !== 'clear' && intervalUnit === 'weekends' && (() => {
+            const [year, month, day] = startDate.split('-').map(Number);
+            const date = new Date(year, month - 1, day);
+            const dayOfWeek = date.getDay();
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+              // Find next Saturday
+              const nextSaturday = new Date(date);
+              while (nextSaturday.getDay() !== 6) {
+                nextSaturday.setDate(nextSaturday.getDate() + 1);
+              }
+              return (
+                <div style={{
+                  padding: 'var(--spacing-sm) var(--spacing-md)',
+                  background: 'rgba(237, 137, 54, 0.1)',
+                  border: '1px solid var(--accent-warning, #ed8936)',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: 'var(--spacing-md)',
+                  fontSize: '0.875rem',
+                  color: 'var(--accent-warning, #ed8936)'
+                }}>
+                  Start date falls on a weekday. First task will be assigned to Saturday {nextSaturday.toLocaleDateString()}.
                 </div>
               );
             }
