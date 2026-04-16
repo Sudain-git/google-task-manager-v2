@@ -407,6 +407,109 @@ class TaskAPI {
     return results;
   }
 
+  /**
+   * Bulk reorder children by calling moveTask for each in sorted order, with rate limiting and retry
+   * @param {string} taskListId - The task list ID
+   * @param {Array} sortedIds - Task IDs in the desired order
+   * @param {string|null} parentId - Parent task ID
+   * @param {Function} onProgress - Progress callback (current, total)
+   */
+  async bulkSortChildren(taskListId, sortedIds, parentId, onProgress = null) {
+    const results = {
+      successful: [],
+      failed: [],
+      stopped: false
+    };
+
+    let currentDelay = this.batchDelay;
+    const maxRetries = this.maxRetries;
+    this._setDelay(currentDelay);
+
+    console.log(`[API] Starting bulk sort of ${sortedIds.length} children with ${currentDelay}ms delay`);
+
+    let rateLimitHits = 0;
+    let sustainableDelay = this.batchDelay;
+
+    this.cancelRequested = false;
+    this._setOperationActive(true);
+
+    try {
+      for (let i = 0; i < sortedIds.length; i++) {
+        if (this.cancelRequested) {
+          results.stopped = true;
+          break;
+        }
+
+        const taskId = sortedIds[i];
+        const previousId = i === 0 ? null : sortedIds[i - 1];
+        let retries = 0;
+        let success = false;
+
+        while (!success) {
+          if (this.cancelRequested) break;
+          try {
+            const result = await this.moveTask(taskListId, taskId, parentId, previousId);
+
+            results.successful.push({ taskId, result });
+            success = true;
+            if (rateLimitHits > 0) rateLimitHits--;
+
+            if (rateLimitHits === 0 && currentDelay > sustainableDelay) {
+              currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
+              this._setDelay(currentDelay);
+            }
+
+          } catch (error) {
+            const errorMsg = error.message || error.result?.error?.message || error.toString() || '';
+
+            const isRateLimit = errorMsg.includes('Rate limit') ||
+                errorMsg.includes('429') ||
+                errorMsg.includes('403') ||
+                errorMsg.includes('quota') ||
+                error.status === 429 ||
+                error.status === 403;
+
+            if (isRateLimit) {
+              rateLimitHits++;
+              if (rateLimitHits === 1) {
+                sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(currentDelay * 1.2)), 90000);
+              }
+              console.warn(`[API] Rate limit sorting child ${i + 1}/${sortedIds.length} (hit #${rateLimitHits}):`, errorMsg);
+              currentDelay = Math.min(Math.ceil(currentDelay * 2), 90000);
+              this._setDelay(currentDelay);
+              await this.delay(currentDelay);
+            } else {
+              retries++;
+              console.warn(`[API] Error sorting child ${i + 1}/${sortedIds.length} (attempt ${retries}/${maxRetries}):`, errorMsg);
+              await this.delay(this.batchDelay * Math.pow(2, retries));
+
+              if (retries >= maxRetries) {
+                results.failed.push({ taskId, error: errorMsg || 'Unknown error after maximum retries' });
+                console.error(`[API] Failed to sort child after ${retries} attempts:`, taskId);
+                break;
+              }
+            }
+          }
+        }
+
+        if (onProgress) {
+          onProgress(i + 1, sortedIds.length);
+        }
+
+        if (i < sortedIds.length - 1) {
+          await this.delay(currentDelay);
+        }
+      }
+    } finally {
+      this._setDelay(0);
+      this._setOperationActive(false);
+    }
+
+    console.log(`[API] Bulk sort complete: ${results.successful.length} successful, ${results.failed.length} failed`);
+
+    return results;
+  }
+
 /**
    * Bulk insert tasks with rate limiting and retry logic
    * @param {string} taskListId - The task list ID

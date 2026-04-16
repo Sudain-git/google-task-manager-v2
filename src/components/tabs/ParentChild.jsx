@@ -53,6 +53,7 @@ function ParentChild({ initialTaskIds, initialSearchTerm, initialListId }) {
   // Processing
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [progressLabel, setProgressLabel] = useState('Working...');
 
   // Warning animation for nesting rule violation
   const [showNestingWarning, setShowNestingWarning] = useState(false);
@@ -565,6 +566,7 @@ function ParentChild({ initialTaskIds, initialSearchTerm, initialListId }) {
     // Set the parent immediately
     try {
       setIsLoading(true);
+      setProgressLabel('Setting parent...');
       setDesignatedParentId(taskId);
       setProgress({ current: 0, total: tasksNeedingUpdate.length });
 
@@ -691,16 +693,25 @@ function ParentChild({ initialTaskIds, initialSearchTerm, initialListId }) {
 
     try {
       setIsLoading(true);
-      for (let i = 0; i < sortedIds.length; i++) {
-        const previousId = i === 0 ? null : sortedIds[i - 1];
-        await taskAPI.moveTask(selectedList, sortedIds[i], reorderParentId, previousId);
+      setProgressLabel('Sorting children...');
+      setProgress({ current: 0, total: sortedIds.length });
+
+      const results = await taskAPI.bulkSortChildren(
+        selectedList, sortedIds, reorderParentId,
+        (current, total) => setProgress({ current, total })
+      );
+
+      if (results.failed.length > 0) {
+        alert(`Failed to sort ${results.failed.length} of ${sortedIds.length} children.`);
       }
+
       setChildrenOrder(sortedIds);
     } catch (error) {
       console.error('Failed to sort children:', error);
       alert('Failed to sort children: ' + error.message);
     } finally {
       setIsLoading(false);
+      setProgress({ current: 0, total: 0 });
     }
   }
 
@@ -1767,7 +1778,7 @@ function ParentChild({ initialTaskIds, initialSearchTerm, initialListId }) {
         <div className="form-section">
           <div className="progress-container">
             <div className="progress-header">
-              <span className="progress-label">Setting parent...</span>
+              <span className="progress-label">{progressLabel}</span>
               <span className="progress-count">
                 {progress.current} / {progress.total}
               </span>
