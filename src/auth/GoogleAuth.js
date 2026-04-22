@@ -40,9 +40,11 @@ class GoogleAuth {
     this.tokenClient = null;
     this.accessToken = null;
     this.tokenExpiresAt = null; // Add this line
-    
+    this.popupBlocked = false;
+
     // Callbacks for auth state changes
     this.onAuthStateChanged = null;
+    this.onPopupBlockedChange = null;
   }
 
   /**
@@ -172,17 +174,28 @@ createTokenClient() {
         
         // Update expiration
         this.tokenExpiresAt = newExpiration;
-        
+
+        // Clear popup blocked flag on successful auth
+        this.popupBlocked = false;
+        if (this.onPopupBlockedChange) this.onPopupBlockedChange(false);
+
         // Set token for gapi client
         window.gapi.client.setToken({
           access_token: this.accessToken
         });
 
         console.log('[Auth] Successfully authenticated');
-        
+
         // Notify listeners
         if (this.onAuthStateChanged) {
           this.onAuthStateChanged(true);
+        }
+      },
+      error_callback: (err) => {
+        if (err.type === 'popup_failed_to_open') {
+          console.warn('[Auth] Popup blocked by browser');
+          this.popupBlocked = true;
+          if (this.onPopupBlockedChange) this.onPopupBlockedChange(true);
         }
       },
     });
