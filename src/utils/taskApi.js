@@ -219,8 +219,13 @@ class TaskAPI {
           if (rateLimitHits > 0) rateLimitHits--;
 
           // Gradually speed up if no errors
-          if (rateLimitHits === 0 && currentDelay > sustainableDelay) {
-            currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
+          if (rateLimitHits === 0) {
+            if (currentDelay > sustainableDelay) {
+              currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
+            } else {
+              sustainableDelay = Math.max(this.batchDelay, Math.round(sustainableDelay * 0.95));
+              currentDelay = sustainableDelay;
+            }
             this._setDelay(currentDelay);
           }
 
@@ -343,8 +348,13 @@ class TaskAPI {
           if (rateLimitHits > 0) rateLimitHits--;
 
           // Gradually speed up if no errors
-          if (rateLimitHits === 0 && currentDelay > sustainableDelay) {
-            currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
+          if (rateLimitHits === 0) {
+            if (currentDelay > sustainableDelay) {
+              currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
+            } else {
+              sustainableDelay = Math.max(this.batchDelay, Math.round(sustainableDelay * 0.95));
+              currentDelay = sustainableDelay;
+            }
             this._setDelay(currentDelay);
           }
 
@@ -454,8 +464,13 @@ class TaskAPI {
             success = true;
             if (rateLimitHits > 0) rateLimitHits--;
 
-            if (rateLimitHits === 0 && currentDelay > sustainableDelay) {
-              currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
+            if (rateLimitHits === 0) {
+              if (currentDelay > sustainableDelay) {
+                currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
+              } else {
+                sustainableDelay = Math.max(this.batchDelay, Math.round(sustainableDelay * 0.95));
+                currentDelay = sustainableDelay;
+              }
               this._setDelay(currentDelay);
             }
 
@@ -555,8 +570,13 @@ class TaskAPI {
           if (rateLimitHits > 0) rateLimitHits--;
 
           // Gradually speed up if no errors
-          if (rateLimitHits === 0 && currentDelay > sustainableDelay) {
-            currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
+          if (rateLimitHits === 0) {
+            if (currentDelay > sustainableDelay) {
+              currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
+            } else {
+              sustainableDelay = Math.max(this.batchDelay, Math.round(sustainableDelay * 0.95));
+              currentDelay = sustainableDelay;
+            }
             this._setDelay(currentDelay);
           }
 
@@ -717,8 +737,13 @@ class TaskAPI {
           if (rateLimitHits > 0) rateLimitHits--;
 
           // Gradually speed up if no errors
-          if (rateLimitHits === 0 && currentDelay > sustainableDelay) {
-            currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
+          if (rateLimitHits === 0) {
+            if (currentDelay > sustainableDelay) {
+              currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
+            } else {
+              sustainableDelay = Math.max(this.batchDelay, Math.round(sustainableDelay * 0.95));
+              currentDelay = sustainableDelay;
+            }
             this._setDelay(currentDelay);
           }
 
