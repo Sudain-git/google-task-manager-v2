@@ -223,7 +223,7 @@ class TaskAPI {
             if (currentDelay > sustainableDelay) {
               currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
             } else {
-              sustainableDelay = Math.max(this.batchDelay, Math.round(sustainableDelay * 0.95));
+              sustainableDelay = Math.max(this.batchDelay, Math.round(sustainableDelay * 0.9));
               currentDelay = sustainableDelay;
             }
             this._setDelay(currentDelay);
@@ -247,7 +247,7 @@ class TaskAPI {
 
             rateLimitHits++;
             if (rateLimitHits === 1) {
-              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(currentDelay * 1.2)), 180000);
+              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(sustainableDelay * 1.5)), 180000);
             }
             console.warn(`[API] Rate limit on task ${i + 1}/${taskIds.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
 
@@ -352,7 +352,7 @@ class TaskAPI {
             if (currentDelay > sustainableDelay) {
               currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
             } else {
-              sustainableDelay = Math.max(this.batchDelay, Math.round(sustainableDelay * 0.95));
+              sustainableDelay = Math.max(this.batchDelay, Math.round(sustainableDelay * 0.9));
               currentDelay = sustainableDelay;
             }
             this._setDelay(currentDelay);
@@ -374,7 +374,7 @@ class TaskAPI {
 
             rateLimitHits++;
             if (rateLimitHits === 1) {
-              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(currentDelay * 1.2)), 180000);
+              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(sustainableDelay * 1.5)), 180000);
             }
             console.warn(`[API] Rate limit on task ${i + 1}/${childTaskIds.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
 
@@ -468,7 +468,7 @@ class TaskAPI {
               if (currentDelay > sustainableDelay) {
                 currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
               } else {
-                sustainableDelay = Math.max(this.batchDelay, Math.round(sustainableDelay * 0.95));
+                sustainableDelay = Math.max(this.batchDelay, Math.round(sustainableDelay * 0.9));
                 currentDelay = sustainableDelay;
               }
               this._setDelay(currentDelay);
@@ -487,7 +487,7 @@ class TaskAPI {
             if (isRateLimit) {
               rateLimitHits++;
               if (rateLimitHits === 1) {
-                sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(currentDelay * 1.2)), 180000);
+                sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(sustainableDelay * 1.5)), 180000);
               }
               console.warn(`[API] Rate limit sorting child ${i + 1}/${sortedIds.length} (hit #${rateLimitHits}):`, errorMsg);
               currentDelay = Math.min(Math.ceil(currentDelay * 2), 180000);
@@ -574,7 +574,7 @@ class TaskAPI {
             if (currentDelay > sustainableDelay) {
               currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
             } else {
-              sustainableDelay = Math.max(this.batchDelay, Math.round(sustainableDelay * 0.95));
+              sustainableDelay = Math.max(this.batchDelay, Math.round(sustainableDelay * 0.9));
               currentDelay = sustainableDelay;
             }
             this._setDelay(currentDelay);
@@ -598,7 +598,7 @@ class TaskAPI {
 
             rateLimitHits++;
             if (rateLimitHits === 1) {
-              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(currentDelay * 1.2)), 180000);
+              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(sustainableDelay * 1.5)), 180000);
             }
             console.warn(`[API] Rate limit on task ${i + 1}/${tasks.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
 
@@ -741,7 +741,7 @@ class TaskAPI {
             if (currentDelay > sustainableDelay) {
               currentDelay = Math.max(sustainableDelay, Math.round(currentDelay * 0.9));
             } else {
-              sustainableDelay = Math.max(this.batchDelay, Math.round(sustainableDelay * 0.95));
+              sustainableDelay = Math.max(this.batchDelay, Math.round(sustainableDelay * 0.9));
               currentDelay = sustainableDelay;
             }
             this._setDelay(currentDelay);
@@ -765,7 +765,7 @@ class TaskAPI {
 
             rateLimitHits++;
             if (rateLimitHits === 1) {
-              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(currentDelay * 1.2)), 180000);
+              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(sustainableDelay * 1.5)), 180000);
             }
             console.warn(`[API] Rate limit on task ${i + 1}/${updates.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
 
