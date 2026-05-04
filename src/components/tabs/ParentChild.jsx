@@ -58,6 +58,9 @@ function ParentChild({ initialTaskIds, initialSearchTerm, initialListId }) {
   // Warning animation for nesting rule violation
   const [showNestingWarning, setShowNestingWarning] = useState(false);
 
+  // Warning for 2,000-child API limit { total, existing, incoming } or null
+  const [showChildLimitWarning, setShowChildLimitWarning] = useState(null);
+
   // Track which abandon button is being hovered (by task ID)
   const [hoveredAbandonId, setHoveredAbandonId] = useState(null);
 
@@ -455,6 +458,15 @@ function ParentChild({ initialTaskIds, initialSearchTerm, initialListId }) {
     return !hasChildren(taskId);
   }
 
+  function getChildLimitInfo(potentialParentId) {
+    const existing = getChildrenOfTask(potentialParentId).length;
+    const incoming = selectedTasks
+      .filter(id => id !== potentialParentId)
+      .filter(id => getTaskById(id)?.parent !== potentialParentId)
+      .length;
+    return { existing, incoming, total: existing + incoming };
+  }
+
   function loadChildrenForParent(parentId) {
     const children = getChildrenOfTask(parentId);
     // Tasks are returned in order from API, so preserve that order
@@ -557,6 +569,14 @@ function ParentChild({ initialTaskIds, initialSearchTerm, initialListId }) {
       const task = getTaskById(id);
       return task?.parent !== taskId;
     });
+
+    // Check 2,000-child API limit
+    const limitInfo = getChildLimitInfo(taskId);
+    if (limitInfo.total > 2000) {
+      setShowChildLimitWarning(limitInfo);
+      return;
+    }
+    setShowChildLimitWarning(null);
 
     if (tasksNeedingUpdate.length === 0) {
       setDesignatedParentId(taskId);
@@ -1341,12 +1361,20 @@ function ParentChild({ initialTaskIds, initialSearchTerm, initialListId }) {
                           const isActualParent = taskHasChildren;
                           const parentTitle = getParentTitle(task);
 
+                          // Check 2,000-child limit for tasks eligible to be parent
+                          const cardLimitInfo = canBeParent(task.id) ? getChildLimitInfo(task.id) : null;
+                          const wouldExceedLimit = cardLimitInfo ? cardLimitInfo.total > 2000 : false;
+
                           // Determine background and border colors based on actual relationships
                           let bgColor = 'var(--bg-primary)';
                           let borderColor = '1px solid var(--border-color)';
                           let radioColor = 'var(--border-color)';
 
-                          if (isActualParent) {
+                          if (wouldExceedLimit) {
+                            bgColor = 'rgba(229, 62, 62, 0.08)';
+                            borderColor = '2px solid var(--accent-error, #e53e3e)';
+                            radioColor = 'var(--accent-error, #e53e3e)';
+                          } else if (isActualParent) {
                             bgColor = 'rgba(72, 187, 120, 0.15)';
                             borderColor = '2px solid var(--accent-success)';
                             radioColor = 'var(--accent-success)';
@@ -1367,7 +1395,7 @@ function ParentChild({ initialTaskIds, initialSearchTerm, initialListId }) {
                                 border: borderColor,
                                 borderRadius: 'var(--radius-sm)',
                                 fontSize: '0.875rem',
-                                cursor: isLoading ? 'wait' : 'pointer',
+                                cursor: isLoading ? 'wait' : wouldExceedLimit ? 'not-allowed' : 'pointer',
                                 display: 'flex',
                                 gap: 'var(--spacing-md)',
                                 alignItems: 'center',
@@ -1434,6 +1462,16 @@ function ParentChild({ initialTaskIds, initialSearchTerm, initialListId }) {
                                     marginTop: '2px'
                                   }}>
                                     Child of: {parentTitle}
+                                  </div>
+                                )}
+                                {wouldExceedLimit && cardLimitInfo && (
+                                  <div style={{
+                                    fontSize: '0.7rem',
+                                    color: 'var(--accent-error, #e53e3e)',
+                                    fontWeight: '600',
+                                    marginTop: '2px'
+                                  }}>
+                                    Would have {cardLimitInfo.total.toLocaleString()} children ({cardLimitInfo.existing.toLocaleString()} existing + {cardLimitInfo.incoming.toLocaleString()} new) — limit is 2,000
                                   </div>
                                 )}
                               </div>
@@ -1581,8 +1619,24 @@ function ParentChild({ initialTaskIds, initialSearchTerm, initialListId }) {
                         transition: 'all 0.2s ease',
                         animation: showNestingWarning ? 'wave 0.5s ease-in-out 2' : 'none'
                       }}>
-                        Note: Google Tasks only supports one level of subtasks. Tasks with parents cannot be parents, and tasks with children cannot become subtasks.
+                        Note: Google Tasks only supports one level of subtasks. Tasks with parents cannot be parents, and tasks with children cannot become subtasks. Parents are also limited to 2,000 children.
                       </div>
+
+                      {/* Child limit warning */}
+                      {showChildLimitWarning && (
+                        <div style={{
+                          marginTop: 'var(--spacing-sm)',
+                          padding: 'var(--spacing-sm)',
+                          background: 'rgba(229, 62, 62, 0.2)',
+                          border: '1px solid var(--accent-error, #e53e3e)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.75rem',
+                          color: 'var(--accent-error, #e53e3e)',
+                          fontWeight: '600',
+                        }}>
+                          Cannot set parent: would create {showChildLimitWarning.total.toLocaleString()} children ({showChildLimitWarning.existing.toLocaleString()} existing + {showChildLimitWarning.incoming.toLocaleString()} new). Google Tasks limits parents to 2,000 children.
+                        </div>
+                      )}
                       <style>{`
                         @keyframes wave {
                           0%, 100% { transform: translateX(0); }
