@@ -247,13 +247,13 @@ class TaskAPI {
 
             rateLimitHits++;
             if (rateLimitHits === 1) {
-              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(sustainableDelay * 1.1)), 180000);
+              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(sustainableDelay * 1.1)), 90000);
             }
             console.warn(`[API] Rate limit on task ${i + 1}/${taskIds.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
 
             // currentDelay doubles on each 403 hit. Wait the doubled delay before retrying,
             // then the inter-task gap fires again after success — intentionally conservative.
-            currentDelay = Math.min(Math.ceil(currentDelay * 1.2), 180000);
+            currentDelay = Math.min(Math.ceil(currentDelay * 1.2), 90000);
             this._setDelay(currentDelay);
             await this.delay(currentDelay);
 
@@ -374,13 +374,13 @@ class TaskAPI {
 
             rateLimitHits++;
             if (rateLimitHits === 1) {
-              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(sustainableDelay * 1.1)), 180000);
+              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(sustainableDelay * 1.1)), 90000);
             }
             console.warn(`[API] Rate limit on task ${i + 1}/${childTaskIds.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
 
             // currentDelay doubles on each 403 hit. Wait the doubled delay before retrying,
             // then the inter-task gap fires again after success — intentionally conservative.
-            currentDelay = Math.min(Math.ceil(currentDelay * 1.2), 180000);
+            currentDelay = Math.min(Math.ceil(currentDelay * 1.2), 90000);
             this._setDelay(currentDelay);
             await this.delay(currentDelay);
 
@@ -487,10 +487,10 @@ class TaskAPI {
             if (isRateLimit) {
               rateLimitHits++;
               if (rateLimitHits === 1) {
-                sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(sustainableDelay * 1.1)), 180000);
+                sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(sustainableDelay * 1.1)), 90000);
               }
               console.warn(`[API] Rate limit sorting child ${i + 1}/${sortedIds.length} (hit #${rateLimitHits}):`, errorMsg);
-              currentDelay = Math.min(Math.ceil(currentDelay * 1.2), 180000);
+              currentDelay = Math.min(Math.ceil(currentDelay * 1.2), 90000);
               this._setDelay(currentDelay);
               await this.delay(currentDelay);
             } else {
@@ -598,13 +598,13 @@ class TaskAPI {
 
             rateLimitHits++;
             if (rateLimitHits === 1) {
-              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(sustainableDelay * 1.1)), 180000);
+              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(sustainableDelay * 1.1)), 90000);
             }
             console.warn(`[API] Rate limit on task ${i + 1}/${tasks.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
 
             // currentDelay doubles on each 403 hit. Wait the doubled delay before retrying,
             // then the inter-task gap fires again after success — intentionally conservative.
-            currentDelay = Math.min(Math.ceil(currentDelay * 1.2), 180000);
+            currentDelay = Math.min(Math.ceil(currentDelay * 1.2), 90000);
             this._setDelay(currentDelay);
             await this.delay(currentDelay);
 
@@ -765,13 +765,13 @@ class TaskAPI {
 
             rateLimitHits++;
             if (rateLimitHits === 1) {
-              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(sustainableDelay * 1.1)), 180000);
+              sustainableDelay = Math.min(Math.max(sustainableDelay, Math.ceil(sustainableDelay * 1.1)), 90000);
             }
             console.warn(`[API] Rate limit on task ${i + 1}/${updates.length} (rate limit hit #${rateLimitHits}, floor: ${sustainableDelay}ms):`, errorMsg || 'Unknown error');
 
             // currentDelay doubles on each 403 hit. Wait the doubled delay before retrying,
             // then the inter-task gap fires again after success — intentionally conservative.
-            currentDelay = Math.min(Math.ceil(currentDelay * 1.2), 180000);
+            currentDelay = Math.min(Math.ceil(currentDelay * 1.2), 90000);
             this._setDelay(currentDelay);
             await this.delay(currentDelay);
 
