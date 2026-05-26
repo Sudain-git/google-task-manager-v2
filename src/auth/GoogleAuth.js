@@ -39,7 +39,9 @@ class GoogleAuth {
     this.currentUser = null;
     this.tokenClient = null;
     this.accessToken = null;
-    this.tokenExpiresAt = null; // Add this line
+    this.tokenExpiresAt = null;
+    this.lastRenewalTime = null;
+    this.lastInteractionTime = null;
     this.popupBlocked = false;
 
     // Callbacks for auth state changes
@@ -174,6 +176,7 @@ createTokenClient() {
         
         // Update expiration
         this.tokenExpiresAt = newExpiration;
+        this.lastRenewalTime = now;
 
         // Clear popup blocked flag on successful auth
         this.popupBlocked = false;
@@ -281,6 +284,7 @@ createTokenClient() {
         this.accessToken = response.access_token;
         const expiresIn = response.expires_in || 3600;
         this.tokenExpiresAt = Date.now() + (expiresIn * 1000);
+        this.lastRenewalTime = Date.now();
         window.gapi.client.setToken({ access_token: this.accessToken });
         resolve(this.accessToken);
       };
@@ -394,6 +398,16 @@ createTokenClient() {
     });
   }
 
+  recordInteraction() {
+    this.lastInteractionTime = Date.now();
+  }
+
+  hasInteractionSinceLastRenewal() {
+    if (!this.lastRenewalTime) return true;
+    if (!this.lastInteractionTime) return false;
+    return this.lastInteractionTime > this.lastRenewalTime;
+  }
+
   /**
    * Refresh token silently
    */
@@ -436,6 +450,7 @@ createTokenClient() {
         console.log('[Auth] ===========================');
 
         this.tokenExpiresAt = newExpiration;
+        this.lastRenewalTime = now;
 
         window.gapi.client.setToken({
           access_token: this.accessToken

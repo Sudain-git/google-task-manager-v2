@@ -15,6 +15,12 @@ function App() {
     initializeAuth();
   }, []);
 
+  useEffect(() => {
+    const handler = () => googleAuth.recordInteraction();
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, []);
+
   async function initializeAuth() {
     try {
       setError(null);

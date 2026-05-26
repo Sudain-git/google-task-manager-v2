@@ -24,8 +24,8 @@ function TokenTimer() {
         setStatus('expired');
       }
 
-      // Auto-refresh at 5 minutes remaining (only once)
-      if (remaining <= 300 && remaining > 0 && !hasRefreshed.current) {
+      // Auto-refresh at 5 minutes remaining, only if user has interacted since last renewal
+      if (remaining <= 300 && remaining > 0 && !hasRefreshed.current && googleAuth.hasInteractionSinceLastRenewal()) {
         hasRefreshed.current = true;
         handleAutoRefresh();
       }
