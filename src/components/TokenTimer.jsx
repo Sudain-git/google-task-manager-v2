@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { googleAuth } from '../auth/GoogleAuth';
+import { taskAPI } from '../utils/taskApi';
 import './TokenTimer.css';
 
 function TokenTimer() {
@@ -24,8 +25,10 @@ function TokenTimer() {
         setStatus('expired');
       }
 
-      // Auto-refresh at 5 minutes remaining, only if user has interacted since last renewal
-      if (remaining <= 300 && remaining > 0 && !hasRefreshed.current && googleAuth.hasInteractionSinceLastRenewal()) {
+      // Auto-refresh at 5 minutes remaining if the user has interacted since last renewal
+      // OR if a bulk operation is actively running (user may be away but task must complete)
+      if (remaining <= 300 && remaining > 0 && !hasRefreshed.current &&
+          (googleAuth.hasInteractionSinceLastRenewal() || taskAPI.isOperationActive)) {
         hasRefreshed.current = true;
         handleAutoRefresh();
       }

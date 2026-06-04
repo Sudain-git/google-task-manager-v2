@@ -13,6 +13,7 @@ class TaskAPI {
     this.maxRetries = 6;
     this.currentDelay = 0;
     this.cancelRequested = false;
+    this.isOperationActive = false;
     this.onDelayChange = null;
     this.onThresholdsChange = null;
     this.onBackoffChange = null;
@@ -25,6 +26,7 @@ class TaskAPI {
   }
 
   _setOperationActive(active) {
+    this.isOperationActive = active;
     this.onOperationChange?.(active);
   }
 
