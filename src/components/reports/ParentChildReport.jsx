@@ -77,17 +77,6 @@ function ParentChildReport({ tasks, onTaskSelect }) {
   ];
 
   const spotlights = [
-    stats.fewestChildrenParent &&
-      stats.fewestChildrenParent.id !== stats.mostChildrenParent?.id && {
-      label: 'Fewest children',
-      value: stats.childCountByParent[stats.fewestChildrenParent.id] || 0,
-      parent: stats.fewestChildrenParent,
-    },
-    stats.mostChildrenParent && {
-      label: 'Most children',
-      value: stats.childCountByParent[stats.mostChildrenParent.id] || 0,
-      parent: stats.mostChildrenParent,
-    },
     stats.firstToComplete &&
       stats.firstToComplete.id !== stats.lastToComplete?.id && {
       label: 'First to complete',
@@ -98,6 +87,17 @@ function ParentChildReport({ tasks, onTaskSelect }) {
       label: 'Last to complete',
       value: formatDate(stats.lastToComplete.due),
       parent: stats.lastToComplete,
+    },
+    stats.fewestChildrenParent &&
+      stats.fewestChildrenParent.id !== stats.mostChildrenParent?.id && {
+      label: 'Fewest children',
+      value: stats.childCountByParent[stats.fewestChildrenParent.id] || 0,
+      parent: stats.fewestChildrenParent,
+    },
+    stats.mostChildrenParent && {
+      label: 'Most children',
+      value: stats.childCountByParent[stats.mostChildrenParent.id] || 0,
+      parent: stats.mostChildrenParent,
     },
     stats.leastRecentlyUpdated && {
       label: 'Longest idle',
