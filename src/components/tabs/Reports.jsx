@@ -10,6 +10,7 @@ import DueTimelineChart from '../reports/DueTimelineChart';
 import DueHeatmap from '../reports/DueHeatmap';
 import VideosByDurationChart from '../reports/VideosByDurationChart';
 import VideosByDueDateChart from '../reports/VideosByDueDateChart';
+import VideoSpotlightReport from '../reports/VideoSpotlightReport';
 
 function Reports({ onNavigateTo }) {
   const [taskLists, setTaskLists] = useState([]);
@@ -492,6 +493,7 @@ function Reports({ onNavigateTo }) {
                     <option value="timeline">Updated Timeline</option>
                     <option value="videosByDueDate">Videos by Due Date</option>
                     <option value="videosByDuration">Videos by Duration</option>
+                    <option value="videoSpotlight">Video Spotlight</option>
                   </select>
                 </div>
                 <div className="form-group" style={{ minWidth: '150px', marginBottom: 0, marginLeft: 'auto' }}>
@@ -556,6 +558,7 @@ function Reports({ onNavigateTo }) {
                         <option value="timeline">Updated Timeline</option>
                         <option value="videosByDueDate">Videos by Due Date</option>
                         <option value="videosByDuration">Videos by Duration</option>
+                        <option value="videoSpotlight">Video Spotlight</option>
                       </select>
                     </div>
                     {selectedParentId ? (
@@ -625,6 +628,16 @@ function Reports({ onNavigateTo }) {
                   setSelectedSearchTerm('');
                 }}
                 onDateClick={(d) => handleHeatmapDateClick(d, 'due')}
+              />
+            )}
+            {selectedReport === 'videoSpotlight' && (
+              <VideoSpotlightReport
+                tasks={filteredTasks}
+                onTaskSelect={(ids) => {
+                  setDateStart(''); setDateEnd(''); setClickCount(0);
+                  setTaskIdFilter(new Set(ids)); setSelectedTaskIds(new Set(ids));
+                  setSelectedSearchTerm('');
+                }}
               />
             )}
           </details>
