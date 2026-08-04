@@ -20,6 +20,8 @@ export function extractVideoId(url) {
  * Examples: PT43S → "43 sec", PT7M → "7 min", PT1H15M → "1 hour 15 min"
  */
 export function formatDuration(isoDuration) {
+  if (!isoDuration) return '0 sec';
+
   const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   
   if (!match) return '0 sec';
@@ -70,7 +72,7 @@ export async function getVideoMetadata(videoId) {
     return {
       title: video.snippet.title,
       channelTitle: video.snippet.channelTitle,
-      duration: formatDuration(video.contentDetails.duration),
+      duration: formatDuration(video.contentDetails?.duration),
       videoId: videoId
     };
   } catch (error) {
@@ -222,9 +224,9 @@ export async function getBatchVideoMetadata(videoIds) {
     data.items.forEach(video => {
       results.push({
         videoId: video.id,
-        title: video.snippet.title,
-        channelTitle: video.snippet.channelTitle,
-        duration: formatDuration(video.contentDetails.duration)
+        title: video.snippet?.title ?? '(untitled)',
+        channelTitle: video.snippet?.channelTitle ?? '',
+        duration: formatDuration(video.contentDetails?.duration)
       });
     });
   }
