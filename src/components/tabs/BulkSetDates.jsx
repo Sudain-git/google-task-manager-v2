@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { taskAPI } from '../../utils/taskApi';
 import FetchingIndicator from '../FetchingIndicator';
 
@@ -30,8 +30,10 @@ function BulkSetDates({ initialTaskIds, initialSearchTerm, initialListId }) {
   );
 
   // Sort states
-  const [sortBy, setSortBy] = useState('alphabetical'); // 'alphabetical', 'created', 'duration', 'dueDate'
+  const [sortBy, setSortBy] = useState('alphabetical'); // 'alphabetical', 'created', 'duration', 'dueDate', 'random'
   const [sortDirection, setSortDirection] = useState('asc'); // 'asc', 'desc'
+  const randomKeysRef = useRef(new Map());
+  const prevSortByRef = useRef(null);
   const [sortedTasks, setSortedTasks] = useState([]);
   
   // Preview/pagination states
@@ -346,13 +348,34 @@ const handleApplySort = useCallback(() => {
         });
         break;
 
+      case 'random': {
+        // Fresh shuffle when first switching into random; otherwise keep existing
+        // positions fixed and only assign new keys to tasks we haven't seen yet.
+        if (prevSortByRef.current !== 'random') {
+          randomKeysRef.current = new Map();
+        }
+        sorted.forEach(task => {
+          if (!randomKeysRef.current.has(task.id)) {
+            randomKeysRef.current.set(task.id, Math.random());
+          }
+        });
+        sorted.sort((a, b) => randomKeysRef.current.get(a.id) - randomKeysRef.current.get(b.id));
+        break;
+      }
+
       default:
         break;
     }
 
+    prevSortByRef.current = sortBy;
     setSortedTasks(sorted);
     console.log(`[BulkSetDates] Sorted ${sorted.length} tasks by ${sortBy} (${sortDirection})`);
   }, [filteredTasks, sortBy, sortDirection]);
+
+  function handleShuffle() {
+    randomKeysRef.current = new Map();
+    handleApplySort();
+  }
 
 /**
    * Format seconds back to readable duration for display
@@ -661,25 +684,52 @@ function handleClear() {
             {/* Sort */}
             <div className="form-group">
               <label htmlFor="sort">Sort</label>
-              <select
-                id="sort"
-                value={`${sortBy}-${sortDirection}`}
-                onChange={(e) => {
-                  const [newSortBy, newDirection] = e.target.value.split('-');
-                  setSortBy(newSortBy);
-                  setSortDirection(newDirection);
-                }}
-                disabled={isLoading}
-              >
-                <option value="alphabetical-asc">Alphabetical A → Z</option>
-                <option value="alphabetical-desc">Alphabetical Z → A</option>
-                <option value="created-asc">Created Oldest First</option>
-                <option value="created-desc">Created Newest First</option>
-                <option value="duration-asc">Duration Shortest First</option>
-                <option value="duration-desc">Duration Longest First</option>
-                <option value="dueDate-asc">Due Date Earliest First</option>
-                <option value="dueDate-desc">Due Date Latest First</option>
-              </select>
+              <div style={{ display: 'flex', gap: 'var(--spacing-xs)', alignItems: 'center' }}>
+                <select
+                  id="sort"
+                  value={`${sortBy}-${sortDirection}`}
+                  onChange={(e) => {
+                    const [newSortBy, newDirection] = e.target.value.split('-');
+                    setSortBy(newSortBy);
+                    setSortDirection(newDirection);
+                  }}
+                  disabled={isLoading}
+                  style={{ flex: 1 }}
+                >
+                  <option value="alphabetical-asc">Alphabetical A → Z</option>
+                  <option value="alphabetical-desc">Alphabetical Z → A</option>
+                  <option value="created-asc">Created Oldest First</option>
+                  <option value="created-desc">Created Newest First</option>
+                  <option value="duration-asc">Duration Shortest First</option>
+                  <option value="duration-desc">Duration Longest First</option>
+                  <option value="dueDate-asc">Due Date Earliest First</option>
+                  <option value="dueDate-desc">Due Date Latest First</option>
+                  <option value="random-asc">Random</option>
+                </select>
+                {sortBy === 'random' && (
+                  <button
+                    type="button"
+                    onClick={handleShuffle}
+                    disabled={isLoading}
+                    title="Shuffle again"
+                    aria-label="Shuffle again"
+                    style={{
+                      width: '2rem',
+                      height: '2rem',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1.1rem',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 'var(--radius-sm)',
+                      flex: 'none'
+                    }}
+                  >
+                    🔀
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Duration Filter */}
@@ -836,11 +886,25 @@ function handleClear() {
                     <option value={100}>100</option>
                   </select>
                   <button
-                    onClick={() => setSelectedTasks(sortedTasks.map(t => t.id))}
+                    onClick={() => {
+                      const pageIds = sortedTasks
+                        .slice((filteredPage - 1) * filteredPageSize, filteredPage * filteredPageSize)
+                        .map(t => t.id);
+                      setSelectedTasks(prev => Array.from(new Set([...prev, ...pageIds])));
+                    }}
                     disabled={isLoading}
+                    title="Select tasks on this page"
                     style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
                   >
-                    Select All
+                    Page
+                  </button>
+                  <button
+                    onClick={() => setSelectedTasks(sortedTasks.map(t => t.id))}
+                    disabled={isLoading}
+                    title="Select all filtered tasks"
+                    style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.75rem' }}
+                  >
+                    All
                   </button>
                   <button
                     onClick={() => setSelectedTasks([])}
